@@ -1,0 +1,1899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的小站 - 私密内容站</title>
+    <style>
+        :root {
+            --primary: #3B82F6;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --partner: #EC4899;
+            --danger: #EF4444;
+            --bg: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --text: #1E293B;
+            --text-secondary: #64748B;
+            --border: #E2E8F0;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1), 0 6px 10px rgba(0, 0, 0, 0.08);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-lg: 16px;
+            --max-width: 640px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: var(--shadow);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            transition: background-color 0.2s;
+        }
+
+        .user-info:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--partner));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .user-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .user-level {
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .level-0 { background-color: #94A3B8; color: white; }
+        .level-1 { background-color: var(--primary); color: white; }
+        .level-2 { background-color: var(--warning); color: white; }
+        .level-3 { background-color: var(--success); color: white; }
+        .level-4 { background-color: var(--partner); color: white; }
+
+        .tabs {
+            display: flex;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 14px 8px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            position: relative;
+            transition: color 0.2s;
+        }
+
+        .tab:hover {
+            color: var(--primary);
+        }
+
+        .tab.active {
+            color: var(--primary);
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 10%;
+            right: 10%;
+            height: 3px;
+            background-color: var(--primary);
+            border-radius: 2px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            overflow-x: auto;
+            white-space: nowrap;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .filter-btn {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background-color: var(--card-bg);
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .filter-btn.active {
+            background-color: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .content-list {
+            padding: 16px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .visibility-tag {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .visibility-public { background-color: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .visibility-private { background-color: rgba(148, 163, 184, 0.1); color: #64748B; }
+        .visibility-partner { background-color: rgba(236, 72, 153, 0.1); color: var(--partner); }
+        .visibility-internal { background-color: rgba(245, 158, 11, 0.1); color: var(--warning); }
+
+        .card-body {
+            padding: 12px 16px;
+        }
+
+        .card-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.6;
+        }
+
+        .card-images {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            margin-top: 10px;
+        }
+
+        .card-image {
+            aspect-ratio: 1;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background-color: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .card-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .card-image.more {
+            position: relative;
+        }
+
+        .card-image.more span {
+            position: absolute;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .card-footer {
+            padding: 10px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: rgba(241, 245, 249, 0.5);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .album-period {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .album-count {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-state-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .empty-state-hint {
+            font-size: 14px;
+        }
+
+        .fab {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: var(--shadow-lg);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 200;
+        }
+
+        .fab:hover {
+            transform: scale(1.05);
+            box-shadow: 0 14px 30px rgba(59, 130, 246, 0.3);
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 300;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .modal-overlay.open {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: var(--max-width);
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+            max-height: 90vh;
+            overflow-y: auto;
+            transform: translateY(100%);
+            transition: transform 0.3s;
+        }
+
+        .modal-overlay.open .modal {
+            transform: translateY(0);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background-color: var(--card-bg);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--bg);
+            color: var(--text-secondary);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .modal-body {
+            padding: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-family: inherit;
+            background-color: var(--card-bg);
+            color: var(--text);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .visibility-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .visibility-option {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .visibility-option:hover {
+            border-color: var(--primary);
+        }
+
+        .visibility-option.active {
+            border-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .visibility-option-icon {
+            font-size: 18px;
+        }
+
+        .visibility-option-label {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .image-upload-area {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .image-upload-area:hover {
+            border-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.02);
+        }
+
+        .image-upload-area.has-images {
+            border-style: solid;
+            border-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .image-upload-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .image-upload-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .image-upload-count {
+            font-size: 12px;
+            color: var(--primary);
+            margin-top: 4px;
+        }
+
+        .uploaded-images {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .uploaded-image {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            background-color: var(--bg);
+        }
+
+        .uploaded-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .uploaded-image-remove {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2563EB;
+        }
+
+        .btn-secondary {
+            background-color: var(--bg);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            background-color: #E2E8F0;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #DC2626;
+        }
+
+        .user-switcher {
+            position: fixed;
+            top: 70px;
+            right: 16px;
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 8px;
+            min-width: 180px;
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+
+        .user-switcher.open {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .user-switcher-header {
+            padding: 8px 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
+        }
+
+        .user-switcher-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .user-switcher-item:hover {
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .user-switcher-item.active {
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .user-switcher-item .user-avatar {
+            width: 28px;
+            height: 28px;
+            font-size: 12px;
+        }
+
+        .user-switcher-item-info {
+            flex: 1;
+        }
+
+        .user-switcher-item-name {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .user-switcher-item-level {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .content-detail {
+            padding: 16px;
+            background-color: var(--card-bg);
+        }
+
+        .detail-header {
+            margin-bottom: 20px;
+        }
+
+        .detail-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .detail-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+        }
+
+        .detail-body {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--text);
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+
+        .detail-images {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .detail-image {
+            aspect-ratio: 1;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+
+        .detail-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .detail-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
+
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background-color: rgba(30, 41, 59, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            z-index: 400;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.success {
+            background-color: var(--success);
+        }
+
+        .toast.error {
+            background-color: var(--danger);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div class="logo">我的小站</div>
+            <div class="user-info" id="userInfo">
+                <div class="user-avatar" id="userAvatar">明</div>
+                <div>
+                    <div class="user-name" id="userName">小明</div>
+                    <div class="user-level level-3" id="userLevel">高级管理员</div>
+                </div>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M6 9l6 6 6-6"/>
+                </svg>
+            </div>
+        </div>
+    </header>
+
+    <div class="tabs">
+        <div class="tab active" data-tab="diary">📔 日记</div>
+        <div class="tab" data-tab="article">📝 文章</div>
+        <div class="tab" data-tab="album">🖼️ 照片集</div>
+    </div>
+
+    <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all">全部</button>
+        <button class="filter-btn" data-filter="public">🌍 开放</button>
+        <button class="filter-btn" data-filter="private">🔒 私密</button>
+        <button class="filter-btn" data-filter="partner">💑 伴侣</button>
+        <button class="filter-btn" data-filter="internal">🏢 内部</button>
+    </div>
+
+    <main id="mainContent" class="content-list">
+    </main>
+
+    <div class="fab" id="fab">+</div>
+
+    <div class="user-switcher" id="userSwitcher">
+        <div class="user-switcher-header">切换用户</div>
+        <div class="user-switcher-item active" data-user-id="user_1">
+            <div class="user-avatar">明</div>
+            <div class="user-switcher-item-info">
+                <div class="user-switcher-item-name">小明</div>
+                <div class="user-switcher-item-level">高级管理员 (3)</div>
+            </div>
+        </div>
+        <div class="user-switcher-item" data-user-id="user_2">
+            <div class="user-avatar">红</div>
+            <div class="user-switcher-item-info">
+                <div class="user-switcher-item-name">小红</div>
+                <div class="user-switcher-item-level">高级管理员 (3)</div>
+            </div>
+        </div>
+        <div class="user-switcher-item" data-user-id="user_3">
+            <div class="user-avatar">刚</div>
+            <div class="user-switcher-item-info">
+                <div class="user-switcher-item-name">小刚</div>
+                <div class="user-switcher-item-level">普通会员 (1)</div>
+            </div>
+        </div>
+        <div class="user-switcher-item" data-user-id="user_4">
+            <div class="user-avatar">华</div>
+            <div class="user-switcher-item-info">
+                <div class="user-switcher-item-name">小华</div>
+                <div class="user-switcher-item-level">管理员 (2)</div>
+            </div>
+        </div>
+        <div class="user-switcher-item" data-user-id="guest">
+            <div class="user-avatar">客</div>
+            <div class="user-switcher-item-info">
+                <div class="user-switcher-item-name">访客</div>
+                <div class="user-switcher-item-level">访客 (0)</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">发布日记</div>
+                <button class="modal-close" id="modalClose">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="modalCancel">取消</button>
+                <button class="btn btn-primary" id="modalSubmit">发布</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        /* ===== 模块1: 配置与常量 ===== */
+        const CONFIG = {
+            siteName: '我的小站',
+            maxImagesPerContent: 9,
+            dateFormat: 'YYYY-MM-DD',
+            dateTimeFormat: 'YYYY-MM-DD HH:mm',
+            storageKey: 'private_content_site_data'
+        };
+
+        const LEVEL = {
+            GUEST: 0,
+            MEMBER: 1,
+            ADMIN: 2,
+            SUPER_ADMIN: 3,
+            SECONDARY_ADMIN: 4
+        };
+
+        const VISIBILITY = {
+            PUBLIC: 'public',
+            PRIVATE: 'private',
+            PARTNER: 'partner',
+            INTERNAL: 'internal'
+        };
+
+        const CONTENT_TYPE = {
+            DIARY: 'diary',
+            ARTICLE: 'article',
+            ALBUM: 'album'
+        };
+
+        const LEVEL_CONFIG = {
+            [LEVEL.GUEST]: { name: '访客', color: '#94A3B8', icon: '👤' },
+            [LEVEL.MEMBER]: { name: '普通会员', color: '#3B82F6', icon: '👥' },
+            [LEVEL.ADMIN]: { name: '管理员', color: '#F59E0B', icon: '🛡️' },
+            [LEVEL.SUPER_ADMIN]: { name: '高级管理员', color: '#10B981', icon: '👑' },
+            [LEVEL.SECONDARY_ADMIN]: { name: '副管理员', color: '#EC4899', icon: '👑' }
+        };
+
+        const VISIBILITY_CONFIG = {
+            [VISIBILITY.PUBLIC]: { name: '开放', icon: '🌍', color: '#10B981', class: 'visibility-public' },
+            [VISIBILITY.PRIVATE]: { name: '私密', icon: '🔒', color: '#64748B', class: 'visibility-private' },
+            [VISIBILITY.PARTNER]: { name: '伴侣', icon: '💑', color: '#EC4899', class: 'visibility-partner' },
+            [VISIBILITY.INTERNAL]: { name: '内部', icon: '🏢', color: '#F59E0B', class: 'visibility-internal' }
+        };
+
+        const CONTENT_TYPE_CONFIG = {
+            [CONTENT_TYPE.DIARY]: { name: '日记', icon: '📔' },
+            [CONTENT_TYPE.ARTICLE]: { name: '文章', icon: '📝' },
+            [CONTENT_TYPE.ALBUM]: { name: '照片集', icon: '🖼️' }
+        };
+
+        /* ===== 模块2: 模拟数据 ===== */
+        let users = [
+            { id: 'user_1', name: '小明', level: LEVEL.SUPER_ADMIN, avatar: '明' },
+            { id: 'user_2', name: '小红', level: LEVEL.SUPER_ADMIN, avatar: '红' },
+            { id: 'user_3', name: '小刚', level: LEVEL.MEMBER, avatar: '刚' },
+            { id: 'user_4', name: '小华', level: LEVEL.ADMIN, avatar: '华' },
+            { id: 'user_5', name: '小李', level: LEVEL.MEMBER, avatar: '李' }
+        ];
+
+        let contents = [
+            { id: 'content_1', type: CONTENT_TYPE.DIARY, title: '今天天气真好', body: '阳光明媚，心情舒畅。下午去公园散步，看到了很多漂亮的花。春天真的来了！', visibility: VISIBILITY.PUBLIC, authorId: 'user_1', createdAt: '2026-07-01 14:30', images: ['img_1'] },
+            { id: 'content_2', type: CONTENT_TYPE.DIARY, title: '私密日记：我的小秘密', body: '这是我最私密的想法，只有我自己能看到...', visibility: VISIBILITY.PRIVATE, authorId: 'user_1', createdAt: '2026-07-02 22:15', images: [] },
+            { id: 'content_3', type: CONTENT_TYPE.DIARY, title: '给小红的悄悄话', body: '亲爱的，今天特别想你。我们在一起的日子总是那么美好。', visibility: VISIBILITY.PARTNER, authorId: 'user_1', createdAt: '2026-07-03 20:00', images: ['img_2', 'img_3'] },
+            { id: 'content_4', type: CONTENT_TYPE.DIARY, title: '管理员会议记录', body: '今天召开了月度管理员会议，讨论了网站安全和用户管理事宜。', visibility: VISIBILITY.INTERNAL, authorId: 'user_4', createdAt: '2026-07-04 10:00', images: [] },
+            { id: 'content_5', type: CONTENT_TYPE.ARTICLE, title: '前端开发最佳实践', body: '本文介绍了现代前端开发的一些最佳实践，包括代码组织、性能优化、安全防护等方面的内容。希望能对大家有所帮助。', visibility: VISIBILITY.PUBLIC, authorId: 'user_3', createdAt: '2026-06-28 09:00', coverImage: 'img_4', images: [] },
+            { id: 'content_6', type: CONTENT_TYPE.ARTICLE, title: '我的技术成长之路', body: '从大学毕业到现在，我在技术道路上走了很多年。这篇文章记录了我的成长历程和心得体会。', visibility: VISIBILITY.PRIVATE, authorId: 'user_3', createdAt: '2026-06-29 15:30', coverImage: '', images: [] },
+            { id: 'content_7', type: CONTENT_TYPE.ARTICLE, title: '给小红的技术分享', body: '亲爱的，这是我整理的一些技术笔记，希望对你有帮助。', visibility: VISIBILITY.PARTNER, authorId: 'user_1', createdAt: '2026-07-01 11:00', coverImage: 'img_5', images: [] },
+            { id: 'content_8', type: CONTENT_TYPE.ARTICLE, title: '内部技术文档：系统架构设计', body: '本文档详细描述了系统的整体架构设计，包括微服务拆分、数据库设计、缓存策略等。', visibility: VISIBILITY.INTERNAL, authorId: 'user_4', createdAt: '2026-07-02 14:00', coverImage: '', images: [] },
+            { id: 'content_9', type: CONTENT_TYPE.ALBUM, title: '周末出游照片', description: '和家人一起去郊外游玩，拍了很多美好的瞬间。', visibility: VISIBILITY.PUBLIC, authorId: 'user_5', createdAt: '2026-07-03 18:00', startDate: '2026-07-02', endDate: '2026-07-03', images: ['img_6', 'img_7', 'img_8', 'img_9'] },
+            { id: 'content_10', type: CONTENT_TYPE.ALBUM, title: '我的私人相册', description: '这是我的私人照片集，记录了一些珍贵的回忆。', visibility: VISIBILITY.PRIVATE, authorId: 'user_2', createdAt: '2026-07-01 16:00', startDate: '2026-01-01', endDate: '2026-07-01', images: ['img_10', 'img_11'] },
+            { id: 'content_11', type: CONTENT_TYPE.ALBUM, title: '我们的旅行纪念', description: '和小明一起去旅行的美好回忆，只属于我们两个人。', visibility: VISIBILITY.PARTNER, authorId: 'user_2', createdAt: '2026-06-25 20:00', startDate: '2026-06-20', endDate: '2026-06-25', images: ['img_12', 'img_13', 'img_14', 'img_15', 'img_16'] },
+            { id: 'content_12', type: CONTENT_TYPE.ALBUM, title: '团建活动照片', description: '公司团建活动记录，仅供内部参考。', visibility: VISIBILITY.INTERNAL, authorId: 'user_4', createdAt: '2026-06-20 10:00', startDate: '2026-06-18', endDate: '2026-06-20', images: ['img_17', 'img_18', 'img_19'] },
+            { id: 'content_13', type: CONTENT_TYPE.DIARY, title: '小刚的公开日记', body: '今天工作顺利完成，感觉很充实。', visibility: VISIBILITY.PUBLIC, authorId: 'user_3', createdAt: '2026-07-04 18:00', images: [] },
+            { id: 'content_14', type: CONTENT_TYPE.DIARY, title: '小红的私密日记', body: '今天心情不太好，需要好好休息一下。', visibility: VISIBILITY.PRIVATE, authorId: 'user_2', createdAt: '2026-07-04 23:00', images: ['img_20'] },
+            { id: 'content_15', type: CONTENT_TYPE.ARTICLE, title: '小红的公开文章', body: '分享一下我的生活感悟...', visibility: VISIBILITY.PUBLIC, authorId: 'user_2', createdAt: '2026-07-03 10:00', coverImage: 'img_21', images: [] }
+        ];
+
+        let content_images = [
+            { id: 'img_1', contentId: 'content_1', url: 'https://picsum.photos/seed/img1/400/400' },
+            { id: 'img_2', contentId: 'content_3', url: 'https://picsum.photos/seed/img2/400/400' },
+            { id: 'img_3', contentId: 'content_3', url: 'https://picsum.photos/seed/img3/400/400' },
+            { id: 'img_4', contentId: 'content_5', url: 'https://picsum.photos/seed/img4/800/400' },
+            { id: 'img_5', contentId: 'content_7', url: 'https://picsum.photos/seed/img5/800/400' },
+            { id: 'img_6', contentId: 'content_9', url: 'https://picsum.photos/seed/img6/400/400' },
+            { id: 'img_7', contentId: 'content_9', url: 'https://picsum.photos/seed/img7/400/400' },
+            { id: 'img_8', contentId: 'content_9', url: 'https://picsum.photos/seed/img8/400/400' },
+            { id: 'img_9', contentId: 'content_9', url: 'https://picsum.photos/seed/img9/400/400' },
+            { id: 'img_10', contentId: 'content_10', url: 'https://picsum.photos/seed/img10/400/400' },
+            { id: 'img_11', contentId: 'content_10', url: 'https://picsum.photos/seed/img11/400/400' },
+            { id: 'img_12', contentId: 'content_11', url: 'https://picsum.photos/seed/img12/400/400' },
+            { id: 'img_13', contentId: 'content_11', url: 'https://picsum.photos/seed/img13/400/400' },
+            { id: 'img_14', contentId: 'content_11', url: 'https://picsum.photos/seed/img14/400/400' },
+            { id: 'img_15', contentId: 'content_11', url: 'https://picsum.photos/seed/img15/400/400' },
+            { id: 'img_16', contentId: 'content_11', url: 'https://picsum.photos/seed/img16/400/400' },
+            { id: 'img_17', contentId: 'content_12', url: 'https://picsum.photos/seed/img17/400/400' },
+            { id: 'img_18', contentId: 'content_12', url: 'https://picsum.photos/seed/img18/400/400' },
+            { id: 'img_19', contentId: 'content_12', url: 'https://picsum.photos/seed/img19/400/400' },
+            { id: 'img_20', contentId: 'content_14', url: 'https://picsum.photos/seed/img20/400/400' },
+            { id: 'img_21', contentId: 'content_15', url: 'https://picsum.photos/seed/img21/800/400' }
+        ];
+
+        /**
+         * 获取所有用户列表
+         * @returns {Array} 用户数组
+         */
+        function getUsers() {
+            return users;
+        }
+
+        /**
+         * 获取所有内容列表
+         * @returns {Array} 内容数组
+         */
+        function getContents() {
+            return contents;
+        }
+
+        /**
+         * 根据内容ID获取关联图片
+         * @param {string} contentId - 内容ID
+         * @returns {Array} 图片数组
+         */
+        function getImagesByContentId(contentId) {
+            return content_images.filter(img => img.contentId === contentId);
+        }
+
+        /**
+         * 根据用户ID获取用户信息
+         * @param {string} userId - 用户ID
+         * @returns {Object|null} 用户对象或null
+         */
+        function getUserById(userId) {
+            return users.find(u => u.id === userId) || null;
+        }
+
+        /* ===== 模块3: localStorage 持久化 ===== */
+
+        /**
+         * 将所有数据保存到 localStorage
+         */
+        function saveData() {
+            const data = {
+                users,
+                contents,
+                content_images
+            };
+            localStorage.setItem(CONFIG.storageKey, JSON.stringify(data));
+        }
+
+        /**
+         * 从 localStorage 加载数据，若无则使用模拟数据
+         */
+        function loadData() {
+            const savedData = localStorage.getItem(CONFIG.storageKey);
+            if (savedData) {
+                try {
+                    const data = JSON.parse(savedData);
+                    users = data.users || users;
+                    contents = data.contents || contents;
+                    content_images = data.content_images || content_images;
+                } catch (e) {
+                    console.error('Failed to load data from localStorage:', e);
+                }
+            }
+        }
+
+        /* ===== 模块4: 状态管理 ===== */
+        let state = {
+            currentUser: getUserById('user_1'),
+            currentTab: CONTENT_TYPE.DIARY,
+            filterVisibility: 'all',
+            selectedContent: null,
+            isModalOpen: false,
+            modalMode: 'create',
+            uploadedImages: [],
+            formImages: [],
+            formCover: ''
+        };
+
+        /**
+         * 更新应用状态
+         * @param {Object} newState - 新状态对象
+         */
+        function setState(newState) {
+            state = { ...state, ...newState };
+            render();
+        }
+
+        /**
+         * 切换当前用户
+         * @param {string} userId - 用户ID
+         */
+        function switchUser(userId) {
+            const user = getUserById(userId);
+            if (user) {
+                setState({ currentUser: user, selectedContent: null });
+                saveData();
+                showToast(`已切换为 ${user.name}`, 'success');
+            }
+        }
+
+        /**
+         * 切换为访客模式
+         */
+        function switchToGuest() {
+            setState({ 
+                currentUser: { id: 'guest', name: '访客', level: LEVEL.GUEST, avatar: '客' },
+                selectedContent: null 
+            });
+            saveData();
+            showToast('已切换为访客模式', 'success');
+        }
+
+        /* ===== 模块5: 工具函数 ===== */
+
+        /**
+         * 格式化日期
+         * @param {string} dateStr - 日期字符串
+         * @param {boolean} includeTime - 是否包含时间
+         * @returns {string} 格式化后的日期字符串
+         */
+        function formatDate(dateStr, includeTime = false) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            if (includeTime) {
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day} ${hours}:${minutes}`;
+            }
+            return `${year}-${month}-${day}`;
+        }
+
+        /**
+         * 格式化日期范围
+         * @param {string} startDate - 开始日期
+         * @param {string} endDate - 结束日期
+         * @returns {string} 格式化后的日期范围
+         */
+        function formatDateRange(startDate, endDate) {
+            if (!startDate) return '';
+            if (!endDate || startDate === endDate) {
+                return formatDate(startDate);
+            }
+            return `${formatDate(startDate)} ~ ${formatDate(endDate)}`;
+        }
+
+        /**
+         * 截断文本
+         * @param {string} text - 原始文本
+         * @param {number} maxLength - 最大长度
+         * @returns {string} 截断后的文本
+         */
+        function truncateText(text, maxLength = 100) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+
+        /**
+         * 获取等级名称
+         * @param {number} level - 等级值
+         * @returns {string} 等级名称
+         */
+        function getLevelName(level) {
+            return LEVEL_CONFIG[level]?.name || '未知';
+        }
+
+        /**
+         * 获取等级颜色
+         * @param {number} level - 等级值
+         * @returns {string} 等级颜色
+         */
+        function getLevelColor(level) {
+            return LEVEL_CONFIG[level]?.color || '#94A3B8';
+        }
+
+        /**
+         * 获取可见性标签
+         * @param {string} visibility - 可见性类型
+         * @returns {string} 可见性标签名称
+         */
+        function getVisibilityLabel(visibility) {
+            return VISIBILITY_CONFIG[visibility]?.name || '未知';
+        }
+
+        /**
+         * 获取可见性图标
+         * @param {string} visibility - 可见性类型
+         * @returns {string} 可见性图标
+         */
+        function getVisibilityIcon(visibility) {
+            return VISIBILITY_CONFIG[visibility]?.icon || '❓';
+        }
+
+        /**
+         * 获取内容类型标签
+         * @param {string} type - 内容类型
+         * @returns {string} 内容类型标签名称
+         */
+        function getContentTypeLabel(type) {
+            return CONTENT_TYPE_CONFIG[type]?.name || '未知';
+        }
+
+        /**
+         * 生成唯一ID
+         * @returns {string} 唯一ID
+         */
+        function generateId() {
+            return `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
+
+        /**
+         * 判断内容对当前用户是否可见（核心权限判断函数）
+         * @param {Object} content - 内容对象
+         * @param {Object} currentUser - 当前用户对象
+         * @returns {boolean} 是否可见
+         */
+        function isContentVisible(content, currentUser) {
+            if (!content || !currentUser) return false;
+            
+            const isAuthor = content.authorId === currentUser.id;
+            const userLevel = currentUser.level;
+
+            switch (content.visibility) {
+                case VISIBILITY.PUBLIC:
+                    return userLevel >= LEVEL.GUEST;
+                case VISIBILITY.PRIVATE:
+                    return isAuthor;
+                case VISIBILITY.PARTNER:
+                    return isAuthor || userLevel === LEVEL.SUPER_ADMIN;
+                case VISIBILITY.INTERNAL:
+                    return userLevel >= LEVEL.ADMIN;
+                default:
+                    return false;
+            }
+        }
+
+        /**
+         * 过滤可见内容列表
+         * @param {Array} contents - 内容数组
+         * @param {Object} currentUser - 当前用户对象
+         * @returns {Array} 可见内容数组
+         */
+        function getVisibleContents(contentsList, currentUser) {
+            return contentsList.filter(content => isContentVisible(content, currentUser));
+        }
+
+        /* ===== 模块6: 数据操作（模拟 API） ===== */
+
+        /**
+         * 根据类型获取内容列表
+         * @param {string} type - 内容类型
+         * @returns {Array} 内容数组
+         * TODO: 接 Supabase API
+         */
+        function getContentsByType(type) {
+            return contents.filter(c => c.type === type);
+        }
+
+        /**
+         * 根据可见性获取内容列表
+         * @param {string} visibility - 可见性类型
+         * @returns {Array} 内容数组
+         * TODO: 接 Supabase API
+         */
+        function getContentsByVisibility(visibility) {
+            return contents.filter(c => c.visibility === visibility);
+        }
+
+        /**
+         * 根据ID获取内容
+         * @param {string} id - 内容ID
+         * @returns {Object|null} 内容对象或null
+         * TODO: 接 Supabase API
+         */
+        function getContentById(id) {
+            return contents.find(c => c.id === id) || null;
+        }
+
+        /**
+         * 创建新内容
+         * @param {Object} data - 内容数据
+         * @returns {Object} 创建的内容对象
+         * TODO: 接 Supabase API
+         */
+        function createContent(data) {
+            const now = new Date();
+            const createdAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            
+            const content = {
+                id: generateId(),
+                type: data.type,
+                title: data.title,
+                body: data.body || '',
+                description: data.description || '',
+                visibility: data.visibility,
+                authorId: state.currentUser.id,
+                createdAt: createdAt,
+                coverImage: data.coverImage || '',
+                images: data.images || [],
+                startDate: data.startDate || '',
+                endDate: data.endDate || ''
+            };
+            
+            contents.unshift(content);
+            
+            if (data.uploadedImages && data.uploadedImages.length > 0) {
+                data.uploadedImages.forEach((url, index) => {
+                    content_images.push({
+                        id: generateId(),
+                        contentId: content.id,
+                        url: url
+                    });
+                });
+            }
+            
+            saveData();
+            return content;
+        }
+
+        /**
+         * 更新内容
+         * @param {string} id - 内容ID
+         * @param {Object} data - 更新数据
+         * @returns {Object|null} 更新后的内容对象或null
+         * TODO: 接 Supabase API
+         */
+        function updateContent(id, data) {
+            const index = contents.findIndex(c => c.id === id);
+            if (index === -1) return null;
+            
+            contents[index] = { ...contents[index], ...data };
+            
+            if (data.uploadedImages) {
+                content_images = content_images.filter(img => img.contentId !== id);
+                data.uploadedImages.forEach(url => {
+                    content_images.push({
+                        id: generateId(),
+                        contentId: id,
+                        url: url
+                    });
+                });
+                contents[index].images = data.uploadedImages.map((_, i) => `img_${Date.now()}_${i}`);
+            }
+            
+            saveData();
+            return contents[index];
+        }
+
+        /**
+         * 删除内容
+         * @param {string} id - 内容ID
+         * @returns {boolean} 是否删除成功
+         * TODO: 接 Supabase API
+         */
+        function deleteContent(id) {
+            const index = contents.findIndex(c => c.id === id);
+            if (index === -1) return false;
+            
+            contents.splice(index, 1);
+            content_images = content_images.filter(img => img.contentId !== id);
+            
+            saveData();
+            return true;
+        }
+
+        /**
+         * 上传图片（模拟）
+         * @param {FileList} files - 文件列表
+         * @returns {Promise<Array>} 图片URL数组
+         * TODO: 接 Supabase API
+         */
+        function uploadImages(files) {
+            return new Promise((resolve) => {
+                const urls = [];
+                const seed = Date.now();
+                for (let i = 0; i < files.length && i < CONFIG.maxImagesPerContent; i++) {
+                    urls.push(`https://picsum.photos/seed/${seed}_${i}/400/400`);
+                }
+                setTimeout(() => resolve(urls), 500);
+            });
+        }
+
+        /* ===== 渲染与交互 ===== */
+
+        /**
+         * 渲染头部用户信息
+         */
+        function renderHeader() {
+            const user = state.currentUser;
+            document.getElementById('userAvatar').textContent = user.avatar || user.name.charAt(0);
+            document.getElementById('userName').textContent = user.name;
+            const levelEl = document.getElementById('userLevel');
+            levelEl.textContent = getLevelName(user.level);
+            levelEl.className = `user-level level-${user.level}`;
+        }
+
+        /**
+         * 渲染内容列表
+         */
+        function renderContentList() {
+            const mainContent = document.getElementById('mainContent');
+            let filteredContents = getContentsByType(state.currentTab);
+            filteredContents = getVisibleContents(filteredContents, state.currentUser);
+            
+            if (state.filterVisibility !== 'all') {
+                filteredContents = filteredContents.filter(c => c.visibility === state.filterVisibility);
+            }
+            
+            filteredContents.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            
+            if (filteredContents.length === 0) {
+                mainContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-text">暂无内容</div>
+                        <div class="empty-state-hint">当前用户没有可见的${getContentTypeLabel(state.currentTab)}</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            mainContent.innerHTML = filteredContents.map(content => {
+                const author = getUserById(content.authorId);
+                const images = getImagesByContentId(content.id);
+                const visibility = VISIBILITY_CONFIG[content.visibility];
+                
+                let bodyHtml = '';
+                if (content.type === CONTENT_TYPE.ALBUM) {
+                    bodyHtml = `<div class="card-text">${truncateText(content.description, 80)}</div>`;
+                } else {
+                    bodyHtml = `<div class="card-text">${truncateText(content.body, 100)}</div>`;
+                }
+                
+                let imagesHtml = '';
+                if (images.length > 0) {
+                    const displayImages = images.slice(0, 9);
+                    imagesHtml = `
+                        <div class="card-images">
+                            ${displayImages.map((img, idx) => `
+                                <div class="card-image${idx >= 3 && images.length > 3 ? ' more' : ''}" style="background-image: url(${img.url}); background-size: cover;">
+                                    ${idx >= 3 && images.length > 3 ? `<span style="position:relative; z-index:1;">+${images.length - 3}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+                
+                let footerHtml = '';
+                if (content.type === CONTENT_TYPE.ALBUM) {
+                    footerHtml = `
+                        <div class="album-period">📅 ${formatDateRange(content.startDate, content.endDate)}</div>
+                        <div class="album-count">🖼️ ${images.length}张照片</div>
+                    `;
+                } else {
+                    footerHtml = `
+                        <div>👤 ${author?.name || '未知'}</div>
+                        <div>📅 ${formatDate(content.createdAt)}</div>
+                    `;
+                }
+                
+                return `
+                    <div class="card" data-content-id="${content.id}">
+                        <div class="card-header">
+                            <div class="card-title">${content.title}</div>
+                            <div class="card-meta">
+                                <span class="visibility-tag ${visibility.class}">${visibility.icon} ${visibility.name}</span>
+                                <span>${getContentTypeLabel(content.type)}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            ${bodyHtml}
+                            ${imagesHtml}
+                        </div>
+                        <div class="card-footer">
+                            ${footerHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * 渲染内容详情
+         */
+        function renderContentDetail() {
+            const mainContent = document.getElementById('mainContent');
+            const content = state.selectedContent;
+            
+            if (!content) {
+                renderContentList();
+                return;
+            }
+            
+            const author = getUserById(content.authorId);
+            const images = getImagesByContentId(content.id);
+            const visibility = VISIBILITY_CONFIG[content.visibility];
+            
+            let imagesHtml = '';
+            if (images.length > 0) {
+                imagesHtml = `
+                    <div class="detail-images">
+                        ${images.map(img => `
+                            <div class="detail-image"><img src="${img.url}" alt="照片"></div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            let periodHtml = '';
+            if (content.type === CONTENT_TYPE.ALBUM && content.startDate) {
+                periodHtml = `<span>📅 ${formatDateRange(content.startDate, content.endDate)}</span>`;
+            }
+            
+            const canEdit = content.authorId === state.currentUser.id || state.currentUser.level >= LEVEL.ADMIN;
+            const canDelete = canEdit;
+            
+            mainContent.innerHTML = `
+                <div class="content-detail">
+                    <div class="detail-header">
+                        <div class="detail-title">${content.title}</div>
+                        <div class="detail-meta">
+                            <span class="visibility-tag ${visibility.class}">${visibility.icon} ${visibility.name}</span>
+                            <span>👤 ${author?.name || '未知'}</span>
+                            <span>📝 ${getContentTypeLabel(content.type)}</span>
+                            <span>⏰ ${formatDate(content.createdAt, true)}</span>
+                            ${periodHtml}
+                        </div>
+                    </div>
+                    <div class="detail-body">${content.type === CONTENT_TYPE.ALBUM ? content.description : content.body}</div>
+                    ${imagesHtml}
+                    <div class="detail-actions">
+                        <button class="btn btn-secondary" id="backBtn">← 返回列表</button>
+                        ${canEdit ? `<button class="btn btn-primary" id="editBtn">✏️ 编辑</button>` : ''}
+                        ${canDelete ? `<button class="btn btn-danger" id="deleteBtn">🗑️ 删除</button>` : ''}
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('backBtn').addEventListener('click', () => {
+                setState({ selectedContent: null });
+            });
+            
+            if (canEdit) {
+                document.getElementById('editBtn').addEventListener('click', () => {
+                    openModal('edit', content);
+                });
+            }
+            
+            if (canDelete) {
+                document.getElementById('deleteBtn').addEventListener('click', () => {
+                    if (confirm('确定要删除这个内容吗？')) {
+                        deleteContent(content.id);
+                        setState({ selectedContent: null });
+                        showToast('删除成功', 'success');
+                    }
+                });
+            }
+        }
+
+        /**
+         * 渲染表单
+         * @param {string} mode - 模式 create 或 edit
+         * @param {Object} content - 编辑时的内容对象
+         */
+        function renderForm(mode, content = null) {
+            const modalBody = document.getElementById('modalBody');
+            const isAlbum = state.currentTab === CONTENT_TYPE.ALBUM;
+            const isArticle = state.currentTab === CONTENT_TYPE.ARTICLE;
+            
+            const currentImages = state.formImages;
+            const currentCover = state.formCover;
+            
+            let uploadedImagesHtml = '';
+            if (currentImages.length > 0) {
+                uploadedImagesHtml = `
+                    <div class="uploaded-images">
+                        ${currentImages.map((url, idx) => `
+                            <div class="uploaded-image">
+                                <img src="${url}" alt="图片${idx + 1}">
+                                <button class="uploaded-image-remove" data-remove-index="${idx}">✕</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            modalBody.innerHTML = `
+                <div class="form-group">
+                    <label class="form-label">标题</label>
+                    <input type="text" class="form-input" id="formTitle" placeholder="请输入标题" value="${content?.title || ''}" required>
+                </div>
+                
+                ${isAlbum ? `
+                    <div class="form-group">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-textarea" id="formDescription" placeholder="请输入描述">${content?.description || ''}</textarea>
+                    </div>
+                ` : `
+                    <div class="form-group">
+                        <label class="form-label">正文</label>
+                        <textarea class="form-textarea" id="formBody" placeholder="请输入正文">${content?.body || ''}</textarea>
+                    </div>
+                `}
+                
+                ${isArticle ? `
+                    <div class="form-group">
+                        <label class="form-label">封面图</label>
+                        <div class="image-upload-area ${currentCover ? 'has-images' : ''}" id="coverUploadArea">
+                            <div class="image-upload-icon">🖼️</div>
+                            <div class="image-upload-text">点击上传封面图</div>
+                            <input type="file" id="coverFileInput" accept="image/*" style="display:none;">
+                        </div>
+                        ${currentCover ? `<img src="${currentCover}" style="width:100%; max-height:200px; object-fit:cover; border-radius:8px; margin-top:8px;">` : ''}
+                    </div>
+                ` : ''}
+                
+                ${!isArticle ? `
+                    <div class="form-group">
+                        <label class="form-label">图片（最多${CONFIG.maxImagesPerContent}张）</label>
+                        <div class="image-upload-area ${currentImages.length > 0 ? 'has-images' : ''}" id="imageUploadArea">
+                            <div class="image-upload-icon">📷</div>
+                            <div class="image-upload-text">点击上传图片</div>
+                            <div class="image-upload-count">${currentImages.length}/${CONFIG.maxImagesPerContent}</div>
+                            <input type="file" id="imageFileInput" accept="image/*" multiple style="display:none;">
+                        </div>
+                        ${uploadedImagesHtml}
+                    </div>
+                ` : ''}
+                
+                ${isAlbum ? `
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">开始日期</label>
+                            <input type="date" class="form-input" id="formStartDate" value="${content?.startDate || ''}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">结束日期</label>
+                            <input type="date" class="form-input" id="formEndDate" value="${content?.endDate || ''}">
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div class="form-group">
+                    <label class="form-label">可见性</label>
+                    <div class="visibility-options">
+                        ${Object.values(VISIBILITY).map(v => {
+                            const config = VISIBILITY_CONFIG[v];
+                            const isActive = content?.visibility === v || (!content && v === VISIBILITY.PUBLIC);
+                            return `
+                                <div class="visibility-option ${isActive ? 'active' : ''}" data-visibility="${v}">
+                                    <span class="visibility-option-icon">${config.icon}</span>
+                                    <span class="visibility-option-label">${config.name}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            
+            initFormEvents(mode, content);
+        }
+
+        /**
+         * 初始化表单事件
+         * @param {string} mode - 模式 create 或 edit
+         * @param {Object} content - 编辑时的内容对象
+         */
+        function initFormEvents(mode, content = null) {
+            if (!state.formImages.length && content) {
+                state.formImages = getImagesByContentId(content.id).map(img => img.url);
+            }
+            if (!state.formCover && content?.coverImage) {
+                state.formCover = content.coverImage;
+            }
+
+            document.querySelectorAll('.visibility-option').forEach(el => {
+                el.addEventListener('click', () => {
+                    document.querySelectorAll('.visibility-option').forEach(opt => opt.classList.remove('active'));
+                    el.classList.add('active');
+                });
+            });
+
+            const imageUploadArea = document.getElementById('imageUploadArea');
+            const imageFileInput = document.getElementById('imageFileInput');
+            if (imageUploadArea && imageFileInput) {
+                imageUploadArea.addEventListener('click', () => imageFileInput.click());
+                imageFileInput.addEventListener('change', async (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        const remainingSlots = CONFIG.maxImagesPerContent - state.formImages.length;
+                        const filesToUpload = Array.from(e.target.files).slice(0, remainingSlots);
+                        const urls = await uploadImages(filesToUpload);
+                        state.formImages = [...state.formImages, ...urls];
+                        renderForm(mode, { ...content, images: state.formImages });
+                        showToast(`上传成功 ${urls.length} 张图片`, 'success');
+                    }
+                });
+            }
+
+            const coverUploadArea = document.getElementById('coverUploadArea');
+            const coverFileInput = document.getElementById('coverFileInput');
+            if (coverUploadArea && coverFileInput) {
+                coverUploadArea.addEventListener('click', () => coverFileInput.click());
+                coverFileInput.addEventListener('change', async (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        const urls = await uploadImages(e.target.files);
+                        state.formCover = urls[0];
+                        renderForm(mode, { ...content, coverImage: state.formCover });
+                        showToast('封面上传成功', 'success');
+                    }
+                });
+            }
+
+            document.querySelectorAll('.uploaded-image-remove').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idx = parseInt(e.target.dataset.removeIndex);
+                    state.formImages.splice(idx, 1);
+                    renderForm(mode, { ...content, images: state.formImages });
+                });
+            });
+        }
+
+        /**
+         * 打开弹窗
+         * @param {string} mode - 模式 create 或 edit
+         * @param {Object} content - 编辑时的内容对象
+         */
+        function openModal(mode, content = null) {
+            state.formImages = content ? getImagesByContentId(content.id).map(img => img.url) : [];
+            state.formCover = content?.coverImage || '';
+            setState({ isModalOpen: true, modalMode: mode, selectedContent: content });
+            document.getElementById('modalTitle').textContent = 
+                mode === 'create' ? `发布${getContentTypeLabel(state.currentTab)}` : `编辑${getContentTypeLabel(state.currentTab)}`;
+            document.getElementById('modalSubmit').textContent = mode === 'create' ? '发布' : '保存';
+            renderForm(mode, content);
+        }
+
+        /**
+         * 关闭弹窗
+         */
+        function closeModal() {
+            state.formImages = [];
+            state.formCover = '';
+            setState({ isModalOpen: false, modalMode: 'create', selectedContent: null });
+        }
+
+        /**
+         * 提交表单
+         */
+        function submitForm() {
+            const title = document.getElementById('formTitle').value.trim();
+            if (!title) {
+                showToast('请输入标题', 'error');
+                return;
+            }
+
+            const visibilityEls = document.querySelectorAll('.visibility-option.active');
+            const visibility = visibilityEls.length > 0 ? visibilityEls[0].dataset.visibility : VISIBILITY.PUBLIC;
+
+            const isAlbum = state.currentTab === CONTENT_TYPE.ALBUM;
+            const isArticle = state.currentTab === CONTENT_TYPE.ARTICLE;
+
+            const data = {
+                type: state.currentTab,
+                title,
+                body: isAlbum ? '' : (document.getElementById('formBody')?.value || ''),
+                description: isAlbum ? (document.getElementById('formDescription')?.value || '') : '',
+                visibility,
+                coverImage: isArticle ? (document.getElementById('coverFileInput')?.dataset.url || state.selectedContent?.coverImage || '') : '',
+                startDate: isAlbum ? (document.getElementById('formStartDate')?.value || '') : '',
+                endDate: isAlbum ? (document.getElementById('formEndDate')?.value || '') : ''
+            };
+
+            const contentImages = document.querySelectorAll('.uploaded-image img');
+            if (contentImages.length > 0) {
+                data.uploadedImages = Array.from(contentImages).map(img => img.src);
+            }
+
+            if (state.modalMode === 'create') {
+                createContent(data);
+                showToast('发布成功', 'success');
+            } else {
+                updateContent(state.selectedContent.id, data);
+                showToast('保存成功', 'success');
+            }
+
+            closeModal();
+        }
+
+        /**
+         * 显示提示消息
+         * @param {string} message - 消息内容
+         * @param {string} type - 消息类型 success/error
+         */
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        /**
+         * 主渲染函数
+         */
+        function render() {
+            renderHeader();
+            
+            if (state.selectedContent) {
+                renderContentDetail();
+            } else {
+                renderContentList();
+            }
+
+            const modalOverlay = document.getElementById('modalOverlay');
+            if (state.isModalOpen) {
+                modalOverlay.classList.add('open');
+            } else {
+                modalOverlay.classList.remove('open');
+            }
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.tab === state.currentTab);
+            });
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === state.filterVisibility);
+            });
+
+            document.querySelectorAll('.user-switcher-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.userId === state.currentUser.id);
+            });
+        }
+
+        /**
+         * 初始化事件监听
+         */
+        function init() {
+            loadData();
+
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    setState({ currentTab: tab.dataset.tab, selectedContent: null });
+                });
+            });
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setState({ filterVisibility: btn.dataset.filter });
+                });
+            });
+
+            document.getElementById('userInfo').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const userSwitcher = document.getElementById('userSwitcher');
+                userSwitcher.classList.toggle('open');
+            });
+
+            document.querySelectorAll('.user-switcher-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const userId = item.dataset.userId;
+                    if (userId === 'guest') {
+                        switchToGuest();
+                    } else {
+                        switchUser(userId);
+                    }
+                    document.getElementById('userSwitcher').classList.remove('open');
+                });
+            });
+
+            document.addEventListener('click', (e) => {
+                const userSwitcher = document.getElementById('userSwitcher');
+                const userInfo = document.getElementById('userInfo');
+                if (!userSwitcher.contains(e.target) && !userInfo.contains(e.target)) {
+                    userSwitcher.classList.remove('open');
+                }
+            });
+
+            document.getElementById('mainContent').addEventListener('click', (e) => {
+                const card = e.target.closest('.card');
+                if (card) {
+                    const contentId = card.dataset.contentId;
+                    const content = getContentById(contentId);
+                    if (content && isContentVisible(content, state.currentUser)) {
+                        setState({ selectedContent: content });
+                    }
+                }
+            });
+
+            document.getElementById('fab').addEventListener('click', () => {
+                openModal('create');
+            });
+
+            document.getElementById('modalClose').addEventListener('click', closeModal);
+            document.getElementById('modalCancel').addEventListener('click', closeModal);
+            document.getElementById('modalOverlay').addEventListener('click', (e) => {
+                if (e.target === document.getElementById('modalOverlay')) {
+                    closeModal();
+                }
+            });
+
+            document.getElementById('modalSubmit').addEventListener('click', submitForm);
+
+            render();
+        }
+
+        init();
+    </script>
+</body>
+</html>
