@@ -2,6 +2,7 @@ const DEFAULT_THEME = {
     brandColor: '#4A5C6B',
     brightness: 'light',
     glassStrength: 85,
+    backgroundBlur: 0,
     cardStyle: 'glass',
     fontSize: 'medium'
 };
@@ -48,6 +49,7 @@ export function applyTheme() {
     root.style.setProperty('--border-color', config.border);
     
     root.style.setProperty('--glass-opacity', currentTheme.glassStrength / 100);
+    root.style.setProperty('--background-blur', currentTheme.backgroundBlur + 'px');
     
     const fontSizeConfig = {
         small: 13,

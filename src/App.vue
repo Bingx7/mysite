@@ -458,7 +458,7 @@ onUnmounted(() => {
             <button v-if="currentUser" class="fab" @click="openCreateModal">+</button>
         </div>
         
-        <div v-if="isModalOpen" class="modal-overlay" @click="closeModal">
+        <div v-if="isModalOpen" class="modal-overlay open" @click="closeModal">
             <div class="modal" @click.stop>
                 <div class="modal-header">
                     <div class="modal-title">{{ modalMode === 'edit' ? '编辑' : '发布' }}{{ getContentTypeLabel(currentTab) }}</div>
@@ -519,7 +519,7 @@ onUnmounted(() => {
             </div>
         </div>
         
-        <div v-if="isSettingsOpen" class="modal-overlay" @click="closeSettings">
+        <div v-if="isSettingsOpen" class="modal-overlay open" @click="closeSettings">
             <div class="modal settings-modal" @click.stop>
                 <div class="modal-header">
                     <div class="modal-title">⚙️ 外观设置</div>
@@ -556,6 +556,15 @@ onUnmounted(() => {
                             <input type="range" min="0" max="100" :value="theme.glassStrength"
                                    @input="handleThemeChange('glassStrength', parseInt($event.target.value))" class="glass-slider">
                             <div class="glass-value">{{ theme.glassStrength }}%</div>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <div class="settings-title">背景模糊</div>
+                        <div class="glass-slider-container">
+                            <input type="range" min="0" max="50" :value="theme.backgroundBlur"
+                                   @input="handleThemeChange('backgroundBlur', parseInt($event.target.value))" class="glass-slider">
+                            <div class="glass-value">{{ theme.backgroundBlur }}px</div>
                         </div>
                     </div>
                     
