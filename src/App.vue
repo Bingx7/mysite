@@ -1,21 +1,26 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import { CONFIG, LEVEL, VISIBILITY, CONTENT_TYPE } from './config';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { CONFIG, LEVEL, VISIBILITY, CONTENT_TYPE, visibilityConfig } from './config';
 import { loadData, getUserByUsername, addUser } from './data';
 import { getVisibleContents, canEditContent, canDeleteContent } from './permissions';
 import { getContentsByType, getImagesByContentId, createContent, updateContentApi, deleteContentApi, uploadImages } from './api';
-import { formatDate, formatDateRange, truncateText, getLevelName, getContentTypeLabel, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getCurrentTime, generateId } from './utils';
+import { formatDate, formatDateRange, truncateText, getContentTypeLabel, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getCurrentTime, generateId } from './utils';
 import { loadTheme, getTheme, setTheme, resetTheme, getBrandColors, getBrightnessOptions, getCardStyleOptions, getFontSizeOptions } from './theme';
 
 const currentUser = ref(null);
 const isLoggedIn = ref(false);
 const currentTab = ref(CONTENT_TYPE.DIARY);
-const filterVisibility = ref('all');
 const selectedContent = ref(null);
 const isModalOpen = ref(false);
 const modalMode = ref('create');
 const formImages = ref([]);
 const formCaptions = ref([]);
+const formTitle = ref('');
+const formBody = ref('');
+const formDescription = ref('');
+const formVisibility = ref(VISIBILITY.PUBLIC);
+const formStartDate = ref('');
+const formEndDate = ref('');
 const isSettingsOpen = ref(false);
 const isSidebarOpen = ref(false);
 const headerTime = ref(getCurrentTime());
@@ -147,6 +152,12 @@ function openCreateModal() {
     selectedContent.value = null;
     formImages.value = [];
     formCaptions.value = [];
+    formTitle.value = '';
+    formBody.value = '';
+    formDescription.value = '';
+    formVisibility.value = VISIBILITY.PUBLIC;
+    formStartDate.value = '';
+    formEndDate.value = '';
     isModalOpen.value = true;
 }
 
@@ -155,6 +166,12 @@ function openEditModal(content) {
     selectedContent.value = content;
     formImages.value = getImagesByContentId(content.id).map(img => img.url);
     formCaptions.value = getImagesByContentId(content.id).map(img => img.caption);
+    formTitle.value = content.title || '';
+    formBody.value = content.body || '';
+    formDescription.value = content.description || '';
+    formVisibility.value = content.visibility || VISIBILITY.PUBLIC;
+    formStartDate.value = content.startDate ? formatDate(content.startDate) : '';
+    formEndDate.value = content.endDate ? formatDate(content.endDate) : '';
     isModalOpen.value = true;
 }
 
@@ -180,14 +197,7 @@ function removeImage(index) {
 }
 
 function handleSaveContent() {
-    const title = document.getElementById('formTitle')?.value;
-    const body = document.getElementById('formBody')?.value;
-    const description = document.getElementById('formDescription')?.value;
-    const visibility = document.querySelector('input[name="visibility"]:checked')?.value;
-    const startDate = document.getElementById('formStartDate')?.value;
-    const endDate = document.getElementById('formEndDate')?.value;
-    
-    if (!title) {
+    if (!formTitle.value) {
         showToastMessage('请输入标题', 'error');
         return;
     }
@@ -195,16 +205,16 @@ function handleSaveContent() {
     const contentData = {
         authorId: currentUser.value.id,
         type: currentTab.value,
-        title,
-        body: body || '',
-        description: description || '',
-        visibility: visibility || VISIBILITY.PRIVATE,
+        title: formTitle.value,
+        body: formBody.value,
+        description: formDescription.value,
+        visibility: formVisibility.value,
         images: formImages.value,
         captions: formCaptions.value
     };
     
-    if (startDate) contentData.startDate = new Date(startDate).getTime();
-    if (endDate) contentData.endDate = new Date(endDate).getTime();
+    if (formStartDate.value) contentData.startDate = new Date(formStartDate.value).getTime();
+    if (formEndDate.value) contentData.endDate = new Date(formEndDate.value).getTime();
     
     if (modalMode.value === 'create') {
         createContent(contentData);
@@ -457,36 +467,34 @@ onUnmounted(() => {
                 <div class="modal-body">
                     <div class="form-group">
                         <label class="form-label">标题</label>
-                        <input id="formTitle" type="text" class="form-input" placeholder="请输入标题" 
-                               :value="selectedContent?.title || ''">
+                        <input v-model="formTitle" type="text" class="form-input" placeholder="请输入标题">
                     </div>
                     
                     <div v-if="currentTab === CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">描述</label>
-                        <textarea id="formDescription" class="form-textarea" placeholder="请输入描述" 
-                                  :value="selectedContent?.description || ''"></textarea>
+                        <textarea v-model="formDescription" class="form-textarea" placeholder="请输入描述"></textarea>
                     </div>
                     
                     <div v-if="currentTab !== CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">正文</label>
-                        <textarea id="formBody" class="form-textarea" placeholder="请输入正文" 
-                                  :value="selectedContent?.body || ''"></textarea>
+                        <textarea v-model="formBody" class="form-textarea" placeholder="请输入正文"></textarea>
                     </div>
                     
                     <div v-if="currentTab === CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">时间段</label>
                         <div class="date-range">
-                            <input id="formStartDate" type="date" class="form-input" :value="selectedContent?.startDate ? formatDate(selectedContent.startDate) : ''">
+                            <input v-model="formStartDate" type="date" class="form-input">
                             <span>~</span>
-                            <input id="formEndDate" type="date" class="form-input" :value="selectedContent?.endDate ? formatDate(selectedContent.endDate) : ''">
+                            <input v-model="formEndDate" type="date" class="form-input">
                         </div>
                     </div>
                     
                     <div class="form-group">
                         <label class="form-label">可见性</label>
                         <div class="visibility-options">
-                            <label v-for="(config, key) in VISIBILITY" :key="key" class="visibility-option">
-                                <input type="radio" name="visibility" :value="key" :checked="selectedContent?.visibility === key || (!selectedContent && key === VISIBILITY.PUBLIC)">
+                            <label v-for="key in Object.keys(visibilityConfig)" :key="key" 
+                                   :class="['visibility-option', { selected: formVisibility === key }]">
+                                <input type="radio" name="visibility" :value="key" v-model="formVisibility">
                                 <span :style="{ color: getVisibilityColor(key) }">{{ getVisibilityIcon(key) }}</span>
                                 <span>{{ getVisibilityLabel(key) }}</span>
                             </label>

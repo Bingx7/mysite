@@ -70,7 +70,7 @@ export function uploadImages(files) {
     /* TODO: 接 Supabase Storage */
     return Promise.resolve(
         Array.from(files).map(() => 
-            `https://picsum.photos/400/300?random=${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            `https://picsum.photos/400/300?random=${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
         )
     );
 }
