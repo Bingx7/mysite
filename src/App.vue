@@ -1,12 +1,16 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { CONFIG, LEVEL, VISIBILITY, CONTENT_TYPE, visibilityConfig } from './config';
-import { loadData, getUserByUsername, addUser } from './data';
+import { supabase } from './supabase';
+import { restoreSession, getUserByUsername, getEmailByUsername, getSystemSettings } from './data';
 import { getVisibleContents, canEditContent, canDeleteContent } from './permissions';
 import { getContentsByType, getImagesByContentId, createContent, updateContentApi, deleteContentApi, uploadImages } from './api';
-import { formatDate, formatDateRange, truncateText, getContentTypeLabel, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getCurrentTime, generateId } from './utils';
+import { formatDate, formatDateRange, truncateText, getContentTypeLabel, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getCurrentTime } from './utils';
 import { loadTheme, getTheme, setTheme, resetTheme, getBrandColors, getBrightnessOptions, getCardStyleOptions, getFontSizeOptions } from './theme';
 
+const AdminPanel = defineAsyncComponent(() => import('./admin/Admin.vue'));
+
+/* ===== 状态 ===== */
 const currentUser = ref(null);
 const isLoggedIn = ref(false);
 const currentTab = ref(CONTENT_TYPE.DIARY);
@@ -23,130 +27,199 @@ const formStartDate = ref('');
 const formEndDate = ref('');
 const isSettingsOpen = ref(false);
 const isSidebarOpen = ref(false);
+const showAdmin = ref(false);
 const headerTime = ref(getCurrentTime());
 const toastMessage = ref('');
 const toastType = ref('success');
 const showToast = ref(false);
 
 const isLoginPage = ref(true);
-const loginForm = ref({ username: '', password: '' });
-const registerForm = ref({ username: '', password: '', name: '', avatar: '👤' });
+const loginForm = ref({ email: '', password: '' });
+const registerForm = ref({ email: '', password: '', username: '', name: '' });
 const isRegisterMode = ref(false);
+const loading = ref(false);
+
+const allContents = ref([]);
+const contentImagesMap = ref({});
+const selectedContentImages = ref([]);
+const sysSettings = ref({ registration_open: true, daily_post_limit: 10, max_image_size: 10 });
 
 let clockInterval = null;
 
+/* ===== 计算属性 ===== */
 const theme = computed(() => getTheme());
 const brandColors = computed(() => getBrandColors());
 const brightnessOptions = computed(() => getBrightnessOptions());
 const cardStyleOptions = computed(() => getCardStyleOptions());
 const fontSizeOptions = computed(() => getFontSizeOptions());
-
-const allContents = computed(() => {
-    if (!isLoggedIn.value) return [];
-    let contents = getContentsByType(currentTab.value);
-    contents = getVisibleContents(contents, currentUser.value);
-    contents.sort((a, b) => b.createdAt - a.createdAt);
-    return contents;
-});
+const registrationOpen = computed(() => sysSettings.value.registration_open);
 
 const folderColors = ['#FF6B9D', '#4ECDC4', '#1A535C', '#FFE66D', '#FF9F1C', '#9B5DE5', '#00BBF9', '#00F5D4'];
 
+/* ===== 工具函数 ===== */
 function startClock() {
-    clockInterval = setInterval(() => {
-        headerTime.value = getCurrentTime();
-    }, 1000);
+    clockInterval = setInterval(() => { headerTime.value = getCurrentTime(); }, 1000);
 }
 
 function showToastMessage(message, type = 'success') {
     toastMessage.value = message;
     toastType.value = type;
     showToast.value = true;
-    setTimeout(() => {
-        showToast.value = false;
-    }, 2500);
+    setTimeout(() => { showToast.value = false; }, 2500);
 }
 
-function handleLogin() {
-    const { username, password } = loginForm.value;
-    if (!username || !password) {
-        showToastMessage('请输入用户名和密码', 'error');
+/* ===== 认证 ===== */
+async function handleLogin() {
+    const account = loginForm.value.email.trim();
+    const { password } = loginForm.value;
+    if (!account || !password) {
+        showToastMessage('请输入账号和密码', 'error');
         return;
     }
-    
-    const user = getUserByUsername(username);
-    if (user && user.password === password) {
-        currentUser.value = user;
-        isLoggedIn.value = true;
-        isLoginPage.value = false;
-        showToastMessage(`欢迎回来，${user.name}`);
-    } else {
-        showToastMessage('用户名或密码错误', 'error');
+    loading.value = true;
+    try {
+        // 判断是邮箱还是用户名
+        let email = account;
+        if (!account.includes('@')) {
+            email = await getEmailByUsername(account);
+            if (!email) {
+                showToastMessage('用户名不存在', 'error');
+                return;
+            }
+        }
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        await loadUserProfile(data.user);
+    } catch (e) {
+        showToastMessage(e.message === 'Invalid login credentials' ? '账号或密码错误' : e.message, 'error');
         loginForm.value.password = '';
+    } finally {
+        loading.value = false;
     }
 }
 
-function handleRegister() {
-    const { username, password, name, avatar } = registerForm.value;
-    if (!username || !password || !name) {
+async function handleRegister() {
+    const { email, password, username, name } = registerForm.value;
+    if (!email || !password || !username || !name) {
         showToastMessage('请填写完整信息', 'error');
         return;
     }
-    
-    if (getUserByUsername(username)) {
-        showToastMessage('用户名已存在', 'error');
+    if (!sysSettings.value.registration_open) {
+        showToastMessage('当前不开放注册', 'error');
         return;
     }
-    
-    const newUser = {
-        id: generateId(),
-        username,
-        password,
-        name,
-        avatar,
-        level: LEVEL.MEMBER
-    };
-    addUser(newUser);
-    
-    showToastMessage('注册成功，请登录');
-    isRegisterMode.value = false;
-    loginForm.value = { username, password: '' };
+    // 校验用户名格式
+    if (!/^[a-zA-Z0-9_]{2,20}$/.test(username)) {
+        showToastMessage('用户名仅支持字母、数字、下划线，2-20位', 'error');
+        return;
+    }
+    loading.value = true;
+    try {
+        // 检查用户名是否重复
+        const existing = await getUserByUsername(username);
+        if (existing) {
+            showToastMessage('用户名已被占用，请换一个', 'error');
+            loading.value = false;
+            return;
+        }
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name, username } }
+        });
+        if (error) throw error;
+        if (data.user) {
+            showToastMessage('注册成功，请登录');
+            isRegisterMode.value = false;
+            loginForm.value = { email, password: '' };
+        } else {
+            showToastMessage('注册成功，请检查邮箱确认');
+            isRegisterMode.value = false;
+        }
+    } catch (e) {
+        showToastMessage(e.message, 'error');
+    } finally {
+        loading.value = false;
+    }
 }
 
-function handleLogout() {
+async function handleLogout() {
+    await supabase.auth.signOut();
     currentUser.value = null;
     isLoggedIn.value = false;
     isLoginPage.value = true;
     selectedContent.value = null;
+    allContents.value = [];
+    contentImagesMap.value = {};
     isSidebarOpen.value = false;
     showToastMessage('已退出登录');
 }
 
+/** 加载用户完整信息 */
+async function loadUserProfile(authUser) {
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+    if (profile) {
+        currentUser.value = { ...authUser, ...profile };
+        isLoggedIn.value = true;
+        isLoginPage.value = false;
+        showToastMessage(`欢迎回来，${profile.name}`);
+        await loadContents();
+        await loadSystemSettings();
+    }
+}
+
+/* ===== 数据加载 ===== */
+async function loadContents() {
+    if (!isLoggedIn.value) return;
+
+    let contents;
+    if (currentTab.value === 'all') {
+        const types = [CONTENT_TYPE.DIARY, CONTENT_TYPE.ARTICLE, CONTENT_TYPE.ALBUM];
+        const results = await Promise.all(types.map(t => getContentsByType(t)));
+        contents = results.flat();
+    } else {
+        contents = await getContentsByType(currentTab.value);
+    }
+
+    contents = getVisibleContents(contents, currentUser.value);
+    contents.sort((a, b) => b.created_at - a.created_at);
+
+    // 预加载图片
+    const imageMap = {};
+    await Promise.all(contents.map(async (c) => {
+        const imgs = await getImagesByContentId(c.id);
+        imageMap[c.id] = imgs;
+    }));
+    contentImagesMap.value = imageMap;
+    allContents.value = contents;
+}
+
+async function loadSystemSettings() {
+    const settings = await getSystemSettings();
+    sysSettings.value = settings;
+}
+
+async function handleRefresh() {
+    await loadContents();
+    await loadSystemSettings();
+}
+
+/* ===== 导航 ===== */
 function switchTab(tab) {
     currentTab.value = tab;
     selectedContent.value = null;
+    loadContents();
 }
 
-function toggleSidebar() {
-    isSidebarOpen.value = !isSidebarOpen.value;
-}
+function toggleSidebar() { isSidebarOpen.value = !isSidebarOpen.value; }
+function openSettings() { isSettingsOpen.value = true; }
+function closeSettings() { isSettingsOpen.value = false; }
 
-function openSettings() {
-    isSettingsOpen.value = true;
-}
+/* ===== 主题 ===== */
+function handleThemeChange(key, value) { setTheme({ [key]: value }); }
+function handleResetTheme() { resetTheme(); showToastMessage('已重置为默认主题'); }
 
-function closeSettings() {
-    isSettingsOpen.value = false;
-}
-
-function handleThemeChange(key, value) {
-    setTheme({ [key]: value });
-}
-
-function handleResetTheme() {
-    resetTheme();
-    showToastMessage('已重置为默认主题');
-}
-
+/* ===== 内容弹窗 ===== */
 function openCreateModal() {
     modalMode.value = 'create';
     selectedContent.value = null;
@@ -164,14 +237,15 @@ function openCreateModal() {
 function openEditModal(content) {
     modalMode.value = 'edit';
     selectedContent.value = content;
-    formImages.value = getImagesByContentId(content.id).map(img => img.url);
-    formCaptions.value = getImagesByContentId(content.id).map(img => img.caption);
+    const imgs = contentImagesMap.value[content.id] || [];
+    formImages.value = imgs.map(img => img.url);
+    formCaptions.value = imgs.map(img => img.caption);
     formTitle.value = content.title || '';
     formBody.value = content.body || '';
     formDescription.value = content.description || '';
     formVisibility.value = content.visibility || VISIBILITY.PUBLIC;
-    formStartDate.value = content.startDate ? formatDate(content.startDate) : '';
-    formEndDate.value = content.endDate ? formatDate(content.endDate) : '';
+    formStartDate.value = content.start_date ? formatDate(new Date(content.start_date).getTime()) : '';
+    formEndDate.value = content.end_date ? formatDate(new Date(content.end_date).getTime()) : '';
     isModalOpen.value = true;
 }
 
@@ -196,12 +270,11 @@ function removeImage(index) {
     formCaptions.value.splice(index, 1);
 }
 
-function handleSaveContent() {
+async function handleSaveContent() {
     if (!formTitle.value) {
         showToastMessage('请输入标题', 'error');
         return;
     }
-    
     const contentData = {
         authorId: currentUser.value.id,
         type: currentTab.value,
@@ -212,48 +285,71 @@ function handleSaveContent() {
         images: formImages.value,
         captions: formCaptions.value
     };
-    
     if (formStartDate.value) contentData.startDate = new Date(formStartDate.value).getTime();
     if (formEndDate.value) contentData.endDate = new Date(formEndDate.value).getTime();
-    
-    if (modalMode.value === 'create') {
-        createContent(contentData);
-        showToastMessage('发布成功');
-    } else {
-        updateContentApi(selectedContent.value.id, contentData);
-        showToastMessage('更新成功');
+
+    try {
+        if (modalMode.value === 'create') {
+            await createContent(contentData);
+            showToastMessage('发布成功');
+        } else {
+            await updateContentApi(selectedContent.value.id, contentData);
+            showToastMessage('更新成功');
+        }
+        closeModal();
+        await loadContents();
+    } catch (e) {
+        showToastMessage('操作失败: ' + e.message, 'error');
     }
-    
-    closeModal();
 }
 
-function handleDeleteContent(content) {
-    if (confirm('确定要删除吗？')) {
-        deleteContentApi(content.id);
+async function handleDeleteContent(content) {
+    if (!confirm('确定要删除吗？')) return;
+    try {
+        await deleteContentApi(content.id);
         selectedContent.value = null;
         showToastMessage('已删除');
+        await loadContents();
+    } catch (e) {
+        showToastMessage('删除失败: ' + e.message, 'error');
     }
 }
 
-function selectContent(content) {
+async function selectContent(content) {
     selectedContent.value = content;
+    const imgs = contentImagesMap.value[content.id] || [];
+    if (imgs.length === 0) {
+        selectedContentImages.value = await getImagesByContentId(content.id);
+    } else {
+        selectedContentImages.value = imgs;
+    }
 }
 
 function goBack() {
     selectedContent.value = null;
+    selectedContentImages.value = [];
 }
 
-onMounted(() => {
-    loadData();
+/* ===== 初始化 ===== */
+onMounted(async () => {
     loadTheme();
     startClock();
-});
-
-onUnmounted(() => {
-    if (clockInterval) {
-        clearInterval(clockInterval);
+    const user = await restoreSession();
+    if (user) {
+        currentUser.value = user;
+        isLoggedIn.value = true;
+        isLoginPage.value = false;
+        await loadContents();
+        await loadSystemSettings();
     }
 });
+
+/* ===== 监听 ===== */
+watch(currentTab, () => {
+    if (isLoggedIn.value) loadContents();
+});
+
+onUnmounted(() => { if (clockInterval) clearInterval(clockInterval); });
 </script>
 
 <template>
@@ -262,6 +358,7 @@ onUnmounted(() => {
             {{ toastMessage }}
         </div>
         
+        <!-- 登录页 -->
         <div v-if="isLoginPage" class="login-page">
             <div class="login-card">
                 <div class="login-logo">📔</div>
@@ -270,15 +367,17 @@ onUnmounted(() => {
                 
                 <form v-if="!isRegisterMode" @submit.prevent="handleLogin" class="login-form">
                     <div class="form-group">
-                        <label class="form-label">用户名</label>
-                        <input v-model="loginForm.username" type="text" class="form-input" placeholder="请输入用户名" required>
+                        <label class="form-label">邮箱或用户名</label>
+                        <input v-model="loginForm.email" type="text" class="form-input" placeholder="邮箱或用户名" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">密码</label>
                         <input v-model="loginForm.password" type="password" class="form-input" placeholder="请输入密码" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-full">登录</button>
-                    <div class="login-switch">
+                    <button type="submit" class="btn btn-primary btn-full" :disabled="loading">
+                        {{ loading ? '登录中...' : '登录' }}
+                    </button>
+                    <div v-if="registrationOpen" class="login-switch">
                         还没有账号？<span @click="isRegisterMode = true" class="link">立即注册</span>
                     </div>
                     <div class="login-guest">
@@ -288,18 +387,24 @@ onUnmounted(() => {
                 
                 <form v-else @submit.prevent="handleRegister" class="login-form">
                     <div class="form-group">
+                        <label class="form-label">邮箱</label>
+                        <input v-model="registerForm.email" type="email" class="form-input" placeholder="请输入邮箱" required>
+                    </div>
+                    <div class="form-group">
                         <label class="form-label">用户名</label>
-                        <input v-model="registerForm.username" type="text" class="form-input" placeholder="请输入用户名" required>
+                        <input v-model="registerForm.username" type="text" class="form-input" placeholder="字母、数字、下划线，2-20位" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">密码</label>
-                        <input v-model="registerForm.password" type="password" class="form-input" placeholder="请输入密码" required>
+                        <input v-model="registerForm.password" type="password" class="form-input" placeholder="请输入密码（至少6位）" required>
                     </div>
                     <div class="form-group">
                         <label class="form-label">昵称</label>
                         <input v-model="registerForm.name" type="text" class="form-input" placeholder="请输入昵称" required>
                     </div>
-                    <button type="submit" class="btn btn-primary btn-full">注册</button>
+                    <button type="submit" class="btn btn-primary btn-full" :disabled="loading">
+                        {{ loading ? '注册中...' : '注册' }}
+                    </button>
                     <div class="login-switch">
                         已有账号？<span @click="isRegisterMode = false" class="link">立即登录</span>
                     </div>
@@ -307,7 +412,10 @@ onUnmounted(() => {
             </div>
         </div>
         
+        <!-- 主页面 -->
         <div v-else class="main-page">
+            <AdminPanel v-if="showAdmin" :currentUser="currentUser" @close="showAdmin = false" @refresh="handleRefresh" />
+            <template v-else>
             <div class="header">
                 <div class="header-content">
                     <div class="header-left">
@@ -315,6 +423,7 @@ onUnmounted(() => {
                         <div class="logo">{{ CONFIG.siteName }}</div>
                     </div>
                     <div class="header-actions">
+                        <button v-if="currentUser?.level === LEVEL.SUPER_ADMIN" class="header-btn admin-entry-btn" @click="showAdmin = true" title="后台管理">🔧</button>
                         <button class="header-btn" @click="openSettings">⚙️</button>
                         <div class="header-time">{{ headerTime }}</div>
                     </div>
@@ -333,25 +442,25 @@ onUnmounted(() => {
                 
                 <ul class="sidebar-nav">
                     <li class="nav-item">
-                        <div :class="['nav-link', { active: currentTab === 'all' }]" @click="currentTab = 'all'; toggleSidebar()">
+                        <div :class="['nav-link', { active: currentTab === 'all' }]" @click="switchTab('all'); toggleSidebar()">
                             <span class="nav-icon">📋</span>
                             <span>全部</span>
                         </div>
                     </li>
                     <li class="nav-item">
-                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.DIARY }]" @click="currentTab = CONTENT_TYPE.DIARY; toggleSidebar()">
+                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.DIARY }]" @click="switchTab(CONTENT_TYPE.DIARY); toggleSidebar()">
                             <span class="nav-icon">📔</span>
                             <span>{{ getContentTypeLabel(CONTENT_TYPE.DIARY) }}</span>
                         </div>
                     </li>
                     <li class="nav-item">
-                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.ARTICLE }]" @click="currentTab = CONTENT_TYPE.ARTICLE; toggleSidebar()">
+                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.ARTICLE }]" @click="switchTab(CONTENT_TYPE.ARTICLE); toggleSidebar()">
                             <span class="nav-icon">📝</span>
                             <span>{{ getContentTypeLabel(CONTENT_TYPE.ARTICLE) }}</span>
                         </div>
                     </li>
                     <li class="nav-item">
-                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.ALBUM }]" @click="currentTab = CONTENT_TYPE.ALBUM; toggleSidebar()">
+                        <div :class="['nav-link', { active: currentTab === CONTENT_TYPE.ALBUM }]" @click="switchTab(CONTENT_TYPE.ALBUM); toggleSidebar()">
                             <span class="nav-icon">🖼️</span>
                             <span>{{ getContentTypeLabel(CONTENT_TYPE.ALBUM) }}</span>
                         </div>
@@ -367,6 +476,7 @@ onUnmounted(() => {
             <div :class="['sidebar-overlay', { open: isSidebarOpen }]" @click="toggleSidebar"></div>
             
             <div class="content">
+                <!-- 内容详情 -->
                 <div v-if="selectedContent" class="content-detail">
                     <div class="detail-header">
                         <button class="btn btn-secondary" @click="goBack">← 返回</button>
@@ -376,15 +486,15 @@ onUnmounted(() => {
                                 {{ getVisibilityIcon(selectedContent.visibility) }} {{ getVisibilityLabel(selectedContent.visibility) }}
                             </span>
                             <span>{{ getContentTypeLabel(selectedContent.type) }}</span>
-                            <span>⏰ {{ formatDate(selectedContent.createdAt, true) }}</span>
-                            <span v-if="selectedContent.startDate">📅 {{ formatDateRange(selectedContent.startDate, selectedContent.endDate) }}</span>
+                            <span>⏰ {{ formatDate(new Date(selectedContent.created_at).getTime(), true) }}</span>
+                            <span v-if="selectedContent.start_date">📅 {{ formatDateRange(new Date(selectedContent.start_date).getTime(), selectedContent.end_date ? new Date(selectedContent.end_date).getTime() : null) }}</span>
                         </div>
                     </div>
                     <div class="detail-body">
                         {{ selectedContent.type === CONTENT_TYPE.ALBUM ? selectedContent.description : selectedContent.body }}
                     </div>
-                    <div v-if="getImagesByContentId(selectedContent.id).length > 0" class="detail-images">
-                        <div v-for="img in getImagesByContentId(selectedContent.id)" :key="img.id" class="detail-image">
+                    <div v-if="selectedContentImages.length > 0" class="detail-images">
+                        <div v-for="img in selectedContentImages" :key="img.id" class="detail-image">
                             <img :src="img.url" :alt="img.caption">
                             <div v-if="img.caption" class="image-caption">{{ img.caption }}</div>
                         </div>
@@ -395,6 +505,7 @@ onUnmounted(() => {
                     </div>
                 </div>
                 
+                <!-- 内容列表 -->
                 <div v-else class="content-list">
                     <div v-if="currentTab === CONTENT_TYPE.ALBUM && allContents.length > 0" class="album-grid">
                         <div v-for="(album, index) in allContents" :key="album.id" 
@@ -404,16 +515,16 @@ onUnmounted(() => {
                                 <div class="album-folder">
                                     <div class="folder-tab"></div>
                                     <div class="folder-content">
-                                        <div v-for="(img, idx) in getImagesByContentId(album.id).slice(0, 3)" :key="img.id"
-                                             class="folder-image" :style="{ backgroundImage: `url(${img.url})`, '--offset': idx * 8 + 'px' }">
+                                        <div v-for="(img, idx) in (contentImagesMap[album.id] || []).slice(0, 3)" :key="img.id"
+                                             class="folder-image" :style="{ backgroundImage: `url(${img.url})` }">
                                         </div>
-                                        <div v-if="getImagesByContentId(album.id).length === 0" class="folder-placeholder">📷</div>
+                                        <div v-if="(contentImagesMap[album.id] || []).length === 0" class="folder-placeholder">📷</div>
                                     </div>
                                 </div>
                             </div>
                             <div class="album-info">
                                 <div class="album-title">{{ album.title }}</div>
-                                <div class="album-stats">{{ getImagesByContentId(album.id).length }} photos</div>
+                                <div class="album-stats">{{ (contentImagesMap[album.id] || []).length }} photos</div>
                             </div>
                         </div>
                     </div>
@@ -434,15 +545,15 @@ onUnmounted(() => {
                                 <div class="card-text">
                                     {{ truncateText(content.type === CONTENT_TYPE.ALBUM ? content.description : content.body, 100) }}
                                 </div>
-                                <div v-if="getImagesByContentId(content.id).length > 0" class="card-images">
-                                    <div v-for="(img, idx) in getImagesByContentId(content.id).slice(0, 3)" :key="img.id"
+                                <div v-if="(contentImagesMap[content.id] || []).length > 0" class="card-images">
+                                    <div v-for="(img, idx) in (contentImagesMap[content.id] || []).slice(0, 3)" :key="img.id"
                                          class="card-image" :style="{ backgroundImage: `url(${img.url})` }">
                                     </div>
                                 </div>
                             </div>
                             <div class="card-footer">
-                                <span v-if="content.type === CONTENT_TYPE.ALBUM">📅 {{ formatDateRange(content.startDate, content.endDate) }}</span>
-                                <span v-else>📅 {{ formatDate(content.createdAt) }}</span>
+                                <span v-if="content.type === CONTENT_TYPE.ALBUM">📅 {{ formatDateRange(content.start_date ? new Date(content.start_date).getTime() : null, content.end_date ? new Date(content.end_date).getTime() : null) }}</span>
+                                <span v-else>📅 {{ formatDate(new Date(content.created_at).getTime()) }}</span>
                             </div>
                         </div>
                     </div>
@@ -456,8 +567,10 @@ onUnmounted(() => {
             </div>
             
             <button v-if="currentUser" class="fab" @click="openCreateModal">+</button>
+            </template>
         </div>
         
+        <!-- 发布/编辑弹窗 -->
         <div v-if="isModalOpen" class="modal-overlay open" @click="closeModal">
             <div class="modal" @click.stop>
                 <div class="modal-header">
@@ -469,17 +582,14 @@ onUnmounted(() => {
                         <label class="form-label">标题</label>
                         <input v-model="formTitle" type="text" class="form-input" placeholder="请输入标题">
                     </div>
-                    
                     <div v-if="currentTab === CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">描述</label>
                         <textarea v-model="formDescription" class="form-textarea" placeholder="请输入描述"></textarea>
                     </div>
-                    
                     <div v-if="currentTab !== CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">正文</label>
                         <textarea v-model="formBody" class="form-textarea" placeholder="请输入正文"></textarea>
                     </div>
-                    
                     <div v-if="currentTab === CONTENT_TYPE.ALBUM" class="form-group">
                         <label class="form-label">时间段</label>
                         <div class="date-range">
@@ -488,7 +598,6 @@ onUnmounted(() => {
                             <input v-model="formEndDate" type="date" class="form-input">
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label class="form-label">可见性</label>
                         <div class="visibility-options">
@@ -500,7 +609,6 @@ onUnmounted(() => {
                             </label>
                         </div>
                     </div>
-                    
                     <div class="form-group">
                         <label class="form-label">图片上传</label>
                         <input type="file" accept="image/*" multiple @change="handleFileUpload" class="file-input">
@@ -519,6 +627,7 @@ onUnmounted(() => {
             </div>
         </div>
         
+        <!-- 设置弹窗 -->
         <div v-if="isSettingsOpen" class="modal-overlay open" @click="closeSettings">
             <div class="modal settings-modal" @click.stop>
                 <div class="modal-header">
@@ -538,7 +647,6 @@ onUnmounted(() => {
                                    @input="handleThemeChange('brandColor', $event.target.value)" class="color-picker">
                         </div>
                     </div>
-                    
                     <div class="settings-section">
                         <div class="settings-title">背景亮度</div>
                         <div class="style-options">
@@ -549,7 +657,6 @@ onUnmounted(() => {
                             </button>
                         </div>
                     </div>
-                    
                     <div class="settings-section">
                         <div class="settings-title">毛玻璃强度</div>
                         <div class="glass-slider-container">
@@ -558,7 +665,6 @@ onUnmounted(() => {
                             <div class="glass-value">{{ theme.glassStrength }}%</div>
                         </div>
                     </div>
-                    
                     <div class="settings-section">
                         <div class="settings-title">背景模糊</div>
                         <div class="glass-slider-container">
@@ -567,7 +673,6 @@ onUnmounted(() => {
                             <div class="glass-value">{{ theme.backgroundBlur }}px</div>
                         </div>
                     </div>
-                    
                     <div class="settings-section">
                         <div class="settings-title">卡片样式</div>
                         <div class="style-options">
@@ -578,7 +683,6 @@ onUnmounted(() => {
                             </button>
                         </div>
                     </div>
-                    
                     <div class="settings-section">
                         <div class="settings-title">字体大小</div>
                         <div class="style-options">
@@ -727,6 +831,11 @@ onUnmounted(() => {
     transition: opacity 0.2s;
 }
 
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .btn-primary {
     background-color: var(--brand-color, #4A5C6B);
     color: white;
@@ -830,6 +939,11 @@ onUnmounted(() => {
 
 .header-btn:hover {
     background-color: rgba(0, 0, 0, 0.05);
+}
+
+.admin-entry-btn {
+    font-size: 17px;
+    color: var(--brand-color, #4A5C6B);
 }
 
 .header-time {
@@ -1555,12 +1669,10 @@ onUnmounted(() => {
         padding: 20px;
         max-width: 100%;
     }
-    
     .album-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 20px;
     }
-    
     .detail-images {
         grid-template-columns: 1fr;
     }
@@ -1570,34 +1682,27 @@ onUnmounted(() => {
     .header-content {
         padding: 10px 16px;
     }
-    
     .logo {
         font-size: 18px;
     }
-    
     .header-time {
         font-size: 14px;
     }
-    
     .sidebar {
         width: 100%;
         top: 56px;
     }
-    
     .content {
         padding: 16px;
     }
-    
     .album-grid {
         grid-template-columns: repeat(2, 1fr);
         gap: 16px;
     }
-    
     .album-folder {
         min-height: 140px;
         padding: 16px;
     }
-    
     .folder-content {
         height: 110px;
     }

@@ -1,76 +1,83 @@
-import { getContents, getImages, addContent, updateContent, deleteContent, addImages, deleteImagesByContentId } from './data';
-import { CONTENT_TYPE, VISIBILITY } from './config';
-import { generateId } from './utils';
+import { supabase } from './supabase'
+import { addContent, updateContent, deleteContent, addImages, deleteImagesByContentId, getContentsByType, getImagesByContentId } from './data'
+import { VISIBILITY } from './config'
 
-export function getContentsByType(type) {
-    return getContents().filter(c => c.type === type);
+export { getContentsByType, getImagesByContentId }
+
+/**
+ * 上传图片到 Supabase Storage
+ * @param {FileList|File[]} files
+ * @returns {Promise<string[]>} 上传后的公开 URL 数组
+ */
+export async function uploadImages(files) {
+    const urls = []
+
+    for (const file of files) {
+        const fileName = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}_${file.name}`
+        const { data, error } = await supabase.storage
+            .from('images')
+            .upload(fileName, file)
+
+        if (error) {
+            console.error('图片上传失败:', error.message)
+            continue
+        }
+
+        const { data: urlData } = supabase.storage
+            .from('images')
+            .getPublicUrl(data.path)
+
+        urls.push(urlData.publicUrl)
+    }
+
+    return urls
 }
 
-export function getContentsByVisibility(visibility) {
-    return getContents().filter(c => c.visibility === visibility);
-}
-
-export function getImagesByContentId(contentId) {
-    return getImages().filter(img => img.contentId === contentId);
-}
-
-export function createContent(data) {
-    /* TODO: 接 Supabase API */
-    const content = {
-        id: generateId(),
+/**
+ * 创建内容 + 关联图片
+ */
+export async function createContent(data) {
+    const content = await addContent({
         authorId: data.authorId,
         type: data.type,
         title: data.title,
         body: data.body || '',
         description: data.description || '',
         visibility: data.visibility || VISIBILITY.PRIVATE,
-        createdAt: Date.now(),
         startDate: data.startDate || null,
         endDate: data.endDate || null
-    };
-    addContent(content);
-    
+    })
+
     if (data.images && data.images.length > 0) {
-        const newImages = data.images.map((url, idx) => ({
-            id: generateId(),
+        await addImages(data.images.map((url, idx) => ({
             contentId: content.id,
-            url: url,
+            url,
             caption: data.captions?.[idx] || ''
-        }));
-        addImages(newImages);
+        })))
     }
-    
-    return content;
+
+    return content
 }
 
-export function updateContentApi(id, data) {
-    /* TODO: 接 Supabase API */
-    updateContent(id, data);
-    
+/**
+ * 更新内容 + 替换图片
+ */
+export async function updateContentApi(id, data) {
+    await updateContent(id, data)
+
     if (data.images) {
-        deleteImagesByContentId(id);
-        const newImages = data.images.map((url, idx) => ({
-            id: generateId(),
+        await deleteImagesByContentId(id)
+        await addImages(data.images.map((url, idx) => ({
             contentId: id,
-            url: url,
+            url,
             caption: data.captions?.[idx] || ''
-        }));
-        addImages(newImages);
+        })))
     }
-    
-    return getContents().find(c => c.id === id);
 }
 
-export function deleteContentApi(id) {
-    /* TODO: 接 Supabase API */
-    deleteContent(id);
-}
-
-export function uploadImages(files) {
-    /* TODO: 接 Supabase Storage */
-    return Promise.resolve(
-        Array.from(files).map(() => 
-            `https://picsum.photos/400/300?random=${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
-        )
-    );
+/**
+ * 删除内容
+ */
+export async function deleteContentApi(id) {
+    await deleteContent(id)
 }

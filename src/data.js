@@ -1,128 +1,271 @@
-import { CONFIG, LEVEL, VISIBILITY, CONTENT_TYPE } from './config';
+import { supabase } from './supabase'
 
-let users = [];
-let contents = [];
-let contentImages = [];
+/* ==============================
+   用户 (profiles)
+   ============================== */
 
-export function getDefaultUsers() {
-    return [
-        { id: 'user_1', name: '小明', username: 'xiaoming', password: '123456', level: LEVEL.SUPER_ADMIN, avatar: '👨' },
-        { id: 'user_2', name: '小红', username: 'xiaohong', password: '123456', level: LEVEL.SUPER_ADMIN, avatar: '👩' },
-        { id: 'user_3', name: '小刚', username: 'xiaogang', password: '123456', level: LEVEL.MEMBER, avatar: '👨‍💼' },
-        { id: 'user_4', name: '管理员', username: 'admin', password: '123456', level: LEVEL.ADMIN, avatar: '🧑‍💼' },
-        { id: 'user_5', name: '次级管理员', username: 'subadmin', password: '123456', level: LEVEL.SECONDARY_ADMIN, avatar: '👩‍💼' }
-    ];
+/** 获取所有用户 */
+export async function getUsers() {
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: true })
+    return data || []
 }
 
-export function getDefaultContents() {
-    return [
-        { id: 'content_1', authorId: 'user_1', type: CONTENT_TYPE.DIARY, title: '今天的心情', body: '今天阳光明媚，心情很好。去公园散步了，看到了很多漂亮的花。', visibility: VISIBILITY.PUBLIC, createdAt: Date.now() - 86400000 },
-        { id: 'content_2', authorId: 'user_1', type: CONTENT_TYPE.DIARY, title: '工作日记', body: '今天完成了一个重要的项目，团队协作很顺利。晚上和同事一起聚餐庆祝。', visibility: VISIBILITY.PRIVATE, createdAt: Date.now() - 172800000 },
-        { id: 'content_3', authorId: 'user_2', type: CONTENT_TYPE.DIARY, title: '旅行日记', body: '这次旅行非常愉快，看到了很多美丽的风景。期待下次旅行！', visibility: VISIBILITY.PARTNER, createdAt: Date.now() - 259200000 },
-        { id: 'content_4', authorId: 'user_2', type: CONTENT_TYPE.DIARY, title: '学习笔记', body: '今天学习了Vue 3的组合式API，感觉很强大。继续加油！', visibility: VISIBILITY.INTERNAL, createdAt: Date.now() - 345600000 },
-        { id: 'content_5', authorId: 'user_3', type: CONTENT_TYPE.ARTICLE, title: '前端开发入门指南', body: '这是一篇关于前端开发入门的文章，适合新手阅读。涵盖HTML、CSS、JavaScript基础知识。', visibility: VISIBILITY.PUBLIC, createdAt: Date.now() - 432000000 },
-        { id: 'content_6', authorId: 'user_3', type: CONTENT_TYPE.ARTICLE, title: 'JavaScript高级技巧', body: '本文介绍一些JavaScript的高级技巧，帮助你写出更优雅的代码。', visibility: VISIBILITY.PRIVATE, createdAt: Date.now() - 518400000 },
-        { id: 'content_7', authorId: 'user_4', type: CONTENT_TYPE.ARTICLE, title: '团队管理心得', body: '作为团队管理者，分享一些管理心得和经验。', visibility: VISIBILITY.PARTNER, createdAt: Date.now() - 604800000 },
-        { id: 'content_8', authorId: 'user_4', type: CONTENT_TYPE.ARTICLE, title: '项目复盘总结', body: '对最近完成的项目进行复盘，总结经验教训。', visibility: VISIBILITY.INTERNAL, createdAt: Date.now() - 691200000 },
-        { id: 'content_9', authorId: 'user_5', type: CONTENT_TYPE.ALBUM, title: '周末出游', description: '周末和朋友一起去郊外游玩，拍了很多美丽的照片。', startDate: Date.now() - 777600000, endDate: Date.now() - 777600000 + 86400000, visibility: VISIBILITY.PUBLIC, createdAt: Date.now() - 777600000 },
-        { id: 'content_10', authorId: 'user_5', type: CONTENT_TYPE.ALBUM, title: '家庭聚会', description: '和家人一起度过了一个温馨的周末。', startDate: Date.now() - 864000000, endDate: Date.now() - 864000000 + 86400000, visibility: VISIBILITY.PRIVATE, createdAt: Date.now() - 864000000 },
-        { id: 'content_11', authorId: 'user_1', type: CONTENT_TYPE.ALBUM, title: '海边度假', description: '在海边度过了一个难忘的假期，阳光、沙滩、海浪...', startDate: Date.now() - 950400000, endDate: Date.now() - 950400000 + 604800000, visibility: VISIBILITY.PARTNER, createdAt: Date.now() - 950400000 },
-        { id: 'content_12', authorId: 'user_2', type: CONTENT_TYPE.ALBUM, title: '公司年会', description: '一年一度的公司年会，大家玩得很开心！', startDate: Date.now() - 1036800000, endDate: Date.now() - 1036800000 + 86400000, visibility: VISIBILITY.INTERNAL, createdAt: Date.now() - 1036800000 }
-    ];
+/** 根据 ID 获取用户 */
+export async function getUserById(id) {
+    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
+    return data || null
 }
 
-export function getDefaultImages() {
-    return [
-        { id: 'img_1', contentId: 'content_9', url: 'https://picsum.photos/400/300?random=1', caption: '风景照' },
-        { id: 'img_2', contentId: 'content_9', url: 'https://picsum.photos/400/300?random=2', caption: '风景照' },
-        { id: 'img_3', contentId: 'content_9', url: 'https://picsum.photos/400/300?random=3', caption: '风景照' },
-        { id: 'img_4', contentId: 'content_10', url: 'https://picsum.photos/400/300?random=4', caption: '家庭照' },
-        { id: 'img_5', contentId: 'content_10', url: 'https://picsum.photos/400/300?random=5', caption: '家庭照' },
-        { id: 'img_6', contentId: 'content_11', url: 'https://picsum.photos/400/300?random=6', caption: '海边照' },
-        { id: 'img_7', contentId: 'content_11', url: 'https://picsum.photos/400/300?random=7', caption: '海边照' },
-        { id: 'img_8', contentId: 'content_11', url: 'https://picsum.photos/400/300?random=8', caption: '海边照' },
-        { id: 'img_9', contentId: 'content_12', url: 'https://picsum.photos/400/300?random=9', caption: '年会照' },
-        { id: 'img_10', contentId: 'content_12', url: 'https://picsum.photos/400/300?random=10', caption: '年会照' },
-        { id: 'img_11', contentId: 'content_1', url: 'https://picsum.photos/400/300?random=11', caption: '心情照' },
-        { id: 'img_12', contentId: 'content_5', url: 'https://picsum.photos/400/300?random=12', caption: '封面图' }
-    ];
+/** 根据 username 获取用户 */
+export async function getUserByUsername(username) {
+    const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    return data || null
 }
 
-export function loadData() {
-    const stored = localStorage.getItem(CONFIG.storageKey);
-    if (stored) {
-        try {
-            const data = JSON.parse(stored);
-            users = data.users || getDefaultUsers();
-            contents = data.contents || getDefaultContents();
-            contentImages = data.contentImages || getDefaultImages();
-        } catch {
-            users = getDefaultUsers();
-            contents = getDefaultContents();
-            contentImages = getDefaultImages();
-        }
-    } else {
-        users = getDefaultUsers();
-        contents = getDefaultContents();
-        contentImages = getDefaultImages();
-        saveData();
+/** 新增用户（直接插入 profiles，不经过 auth） */
+export async function addUser(user) {
+    const { data, error } = await supabase.from('profiles').insert({
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar || '👤',
+        level: user.level || 1
+    }).select().single()
+
+    if (error) throw error
+    return data
+}
+
+/** 更新用户信息 */
+export async function updateUser(id, updates) {
+    const { data, error } = await supabase.from('profiles').update(updates).eq('id', id).select().single()
+    if (error) throw error
+    return data
+}
+
+/** 删除用户（级联删除由数据库 CASCADE 处理） */
+export async function deleteUser(id) {
+    const { error } = await supabase.from('profiles').delete().eq('id', id)
+    if (error) throw error
+}
+
+/* ==============================
+   内容 (contents)
+   ============================== */
+
+/** 获取所有内容 */
+export async function getContents() {
+    const { data } = await supabase.from('contents').select('*').order('created_at', { ascending: false })
+    return data || []
+}
+
+/** 根据 ID 获取内容 */
+export async function getContentById(id) {
+    const { data } = await supabase.from('contents').select('*').eq('id', id).single()
+    return data || null
+}
+
+/** 根据类型获取内容 */
+export async function getContentsByType(type) {
+    const { data } = await supabase
+        .from('contents')
+        .select('*')
+        .eq('type', type)
+        .order('pinned', { ascending: false })
+        .order('created_at', { ascending: false })
+    return data || []
+}
+
+/** 根据可见性获取内容 */
+export async function getContentsByVisibility(visibility) {
+    const { data } = await supabase.from('contents').select('*').eq('visibility', visibility)
+    return data || []
+}
+
+/** 根据作者获取内容 */
+export async function getContentsByAuthorId(authorId) {
+    const { data } = await supabase.from('contents').select('*').eq('author_id', authorId).order('created_at', { ascending: false })
+    return data || []
+}
+
+/** 新增内容 */
+export async function addContent(content) {
+    const { data, error } = await supabase.from('contents').insert({
+        author_id: content.authorId,
+        type: content.type,
+        title: content.title,
+        body: content.body || '',
+        description: content.description || '',
+        visibility: content.visibility || 'private',
+        pinned: content.pinned || false,
+        start_date: content.startDate ? new Date(content.startDate).toISOString() : null,
+        end_date: content.endDate ? new Date(content.endDate).toISOString() : null
+    }).select().single()
+
+    if (error) throw error
+    return data
+}
+
+/** 更新内容 */
+export async function updateContent(id, updates) {
+    const payload = { ...updates }
+    // 字段名映射：App 里用的是 camelCase，数据库是 snake_case
+    if (payload.visibility !== undefined) payload.visibility = payload.visibility
+    if (payload.startDate !== undefined) {
+        payload.start_date = payload.startDate ? new Date(payload.startDate).toISOString() : null
+        delete payload.startDate
+    }
+    if (payload.endDate !== undefined) {
+        payload.end_date = payload.endDate ? new Date(payload.endDate).toISOString() : null
+        delete payload.endDate
+    }
+
+    const { data, error } = await supabase.from('contents').update(payload).eq('id', id).select().single()
+    if (error) throw error
+    return data
+}
+
+/** 删除内容（级联删除图片由数据库 CASCADE 处理） */
+export async function deleteContent(id) {
+    const { error } = await supabase.from('contents').delete().eq('id', id)
+    if (error) throw error
+}
+
+/** 切换置顶 */
+export async function pinContent(id) {
+    const { data: current } = await supabase.from('contents').select('pinned').eq('id', id).single()
+    const { data, error } = await supabase.from('contents').update({ pinned: !current.pinned }).eq('id', id).select().single()
+    if (error) throw error
+    return data
+}
+
+/** 获取置顶内容 */
+export async function getPinnedContents(type) {
+    const { data } = await supabase.from('contents').select('*').eq('type', type).eq('pinned', true)
+    return data || []
+}
+
+/* ==============================
+   内容图片 (content_images)
+   ============================== */
+
+/** 获取所有图片 */
+export async function getImages() {
+    const { data } = await supabase.from('content_images').select('*')
+    return data || []
+}
+
+/** 根据内容 ID 获取图片 */
+export async function getImagesByContentId(contentId) {
+    const { data } = await supabase.from('content_images').select('*').eq('content_id', contentId).order('sort_order', { ascending: true })
+    return data || []
+}
+
+/** 新增图片 */
+export async function addImages(images) {
+    const { error } = await supabase.from('content_images').insert(images.map((img, idx) => ({
+        content_id: img.contentId,
+        url: img.url,
+        caption: img.caption || '',
+        sort_order: idx
+    })))
+    if (error) throw error
+}
+
+/** 删除内容的所有图片 */
+export async function deleteImagesByContentId(contentId) {
+    const { error } = await supabase.from('content_images').delete().eq('content_id', contentId)
+    if (error) throw error
+}
+
+/* ==============================
+   操作日志 (operation_logs)
+   ============================== */
+
+/** 添加操作日志 */
+export async function addLog(logEntry) {
+    const { error } = await supabase.from('operation_logs').insert({
+        user_id: logEntry.userId,
+        user_name: logEntry.userName,
+        action: logEntry.action,
+        target: logEntry.target,
+        target_type: logEntry.targetType,
+        detail: logEntry.detail
+    })
+    if (error) throw error
+}
+
+/** 获取操作日志（最新在前） */
+export async function getLogs() {
+    const { data } = await supabase.from('operation_logs').select('*').order('created_at', { ascending: false }).limit(500)
+    return data || []
+}
+
+/* ==============================
+   系统设置 (system_settings)
+   ============================== */
+
+/** 获取系统设置（表不存在时降级为默认值） */
+export async function getSystemSettings() {
+    try {
+        const { data } = await supabase.from('system_settings').select('*').eq('id', 1).maybeSingle()
+        return data || { registration_open: true, daily_post_limit: 10, max_image_size: 10 }
+    } catch (e) {
+        console.warn('无法加载系统设置，使用默认值:', e.message)
+        return { registration_open: true, daily_post_limit: 10, max_image_size: 10 }
     }
 }
 
-export function saveData() {
-    localStorage.setItem(CONFIG.storageKey, JSON.stringify({
-        users,
-        contents,
-        contentImages
-    }));
+/** 根据用户名查找邮箱（用于用户名登录） */
+export async function getEmailByUsername(username) {
+    const { data } = await supabase.from('profiles').select('email').eq('username', username).maybeSingle()
+    return data?.email || null
 }
 
-export function getUsers() { return users; }
-export function getContents() { return contents; }
-export function getImages() { return contentImages; }
-
-export function getContentById(id) {
-    return contents.find(c => c.id === id);
+/** 更新系统设置 */
+export async function updateSystemSettings(settings) {
+    const { error } = await supabase.from('system_settings').update({
+        ...settings,
+        updated_at: new Date().toISOString()
+    }).eq('id', 1)
+    if (error) throw error
 }
 
-export function getUserById(id) {
-    return users.find(u => u.id === id);
-}
+/* ==============================
+   存储用量统计
+   ============================== */
 
-export function getUserByUsername(username) {
-    return users.find(u => u.username === username);
-}
+/** 获取存储概况 */
+export async function getStorageUsage() {
+    const [usersRes, contentsRes, imagesRes, logsRes] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase.from('contents').select('id', { count: 'exact', head: true }),
+        supabase.from('content_images').select('id', { count: 'exact', head: true }),
+        supabase.from('operation_logs').select('id', { count: 'exact', head: true })
+    ])
 
-export function addUser(user) {
-    users.push(user);
-    saveData();
-}
-
-export function addContent(content) {
-    contents.push(content);
-    saveData();
-}
-
-export function updateContent(id, data) {
-    const index = contents.findIndex(c => c.id === id);
-    if (index !== -1) {
-        contents[index] = { ...contents[index], ...data };
-        saveData();
+    return {
+        totalUsers: usersRes.count || 0,
+        totalContents: contentsRes.count || 0,
+        totalImages: imagesRes.count || 0,
+        logsCount: logsRes.count || 0
     }
 }
 
-export function deleteContent(id) {
-    contents = contents.filter(c => c.id !== id);
-    contentImages = contentImages.filter(img => img.contentId !== id);
-    saveData();
-}
+/* ==============================
+   初始化：检查 session
+   ============================== */
 
-export function addImages(newImages) {
-    contentImages.push(...newImages);
-    saveData();
-}
+/** 检查是否有已登录的 session，返回用户信息 */
+export async function restoreSession() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return null
 
-export function deleteImagesByContentId(contentId) {
-    contentImages = contentImages.filter(img => img.contentId !== contentId);
-    saveData();
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single()
+
+    return profile ? { ...session.user, ...profile } : null
 }
