@@ -1,8 +1,7 @@
 export const CONFIG = {
     siteName: '我的小站',
     maxImagesPerContent: 9,
-    dateFormat: 'YYYY-MM-DD',
-    storageKey: 'private_content_site_data'
+    dateFormat: 'YYYY-MM-DD'
 };
 
 export const LEVEL = {
@@ -50,6 +49,7 @@ export const visibilityConfig = {
 };
 
 export const typeLabelMap = {
+    all: '全部',
     [CONTENT_TYPE.DIARY]: '日记',
     [CONTENT_TYPE.ARTICLE]: '文章',
     [CONTENT_TYPE.ALBUM]: '照片集'

@@ -52,10 +52,6 @@ export function getContentTypeLabel(type) {
     return typeLabelMap[type] || '未知';
 }
 
-export function generateId() {
-    return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2, 11);
-}
-
 export function getCurrentTime() {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');

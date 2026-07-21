@@ -321,6 +321,97 @@ async function handleSaveSettings() {
     }
 }
 
+/* ===== 数据导出 ===== */
+const exportTimeStart = ref('')
+const exportTimeEnd = ref('')
+const exportTypeFilter = ref('all')
+const checkedExportIds = ref(new Set())
+
+const exportableContents = computed(() => {
+    let list = contents.value
+    if (exportTypeFilter.value !== 'all') list = list.filter(c => c.type === exportTypeFilter.value)
+    if (exportTimeStart.value) {
+        const start = new Date(exportTimeStart.value).getTime()
+        list = list.filter(c => new Date(c.created_at).getTime() >= start)
+    }
+    if (exportTimeEnd.value) {
+        const end = new Date(exportTimeEnd.value).setHours(23, 59, 59, 999)
+        list = list.filter(c => new Date(c.created_at).getTime() <= end)
+    }
+    return [...list].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+})
+
+const exportSelectAll = computed({
+    get() { return exportableContents.value.length > 0 && exportableContents.value.every(c => checkedExportIds.value.has(c.id)) },
+    set(v) {
+        if (v) { exportableContents.value.forEach(c => checkedExportIds.value.add(c.id)) }
+        else { checkedExportIds.value = new Set([...checkedExportIds.value].filter(id => !exportableContents.value.some(c => c.id === id))) }
+    }
+})
+
+const exportCheckedCount = computed(() => 
+    exportableContents.value.filter(c => checkedExportIds.value.has(c.id)).length
+)
+
+function toggleExportCheck(id) {
+    const s = new Set(checkedExportIds.value)
+    s.has(id) ? s.delete(id) : s.add(id)
+    checkedExportIds.value = s
+}
+
+async function exportSelectedMarkdown() {
+    const selected = exportableContents.value.filter(c => checkedExportIds.value.has(c.id))
+    if (selected.length === 0) { alert('请至少选择一条内容'); return }
+
+    const contentIds = selected.map(c => c.id)
+    const { data: imgs } = await supabase.from('content_images').select('*').in('content_id', contentIds)
+    const imageMap = {}
+    if (imgs) imgs.forEach(img => { (imageMap[img.content_id] ||= []).push(img) })
+
+    let md = `# ${CONFIG.siteName} 数据备份\n\n`
+    md += `> 导出时间：${new Date().toLocaleString('zh-CN')}\n`
+    md += `> 共 ${selected.length} 条内容\n\n---\n\n`
+
+    for (const c of selected) {
+        const authorName = getAuthorName(c.author_id)
+        const typeLabel = getContentTypeLabel(c.type)
+        const visLabel = getVisibilityLabel(c.visibility)
+        const date = formatDate(new Date(c.created_at).getTime(), true)
+        const cImgs = imageMap[c.id] || []
+
+        md += `## ${c.title}\n\n`
+        md += `| 属性 | 值 |\n|------|----|\n`
+        md += `| 类型 | ${typeLabel} |\n| 作者 | ${authorName} |\n| 可见性 | ${visLabel} |\n| 时间 | ${date} |\n`
+        if (c.start_date) {
+            let r = formatDate(new Date(c.start_date).getTime())
+            if (c.end_date) r += ` ~ ${formatDate(new Date(c.end_date).getTime())}`
+            md += `| 时间段 | ${r} |\n`
+        }
+        md += `\n`
+        if (c.body) md += `${c.body}\n\n`
+        if (c.description) md += `> ${c.description}\n\n`
+        if (cImgs.length > 0) {
+            md += `**图片 (${cImgs.length} 张)**\n\n`
+            for (const img of cImgs) {
+                md += `![${img.caption || '图片'}](${img.url})\n`
+                if (img.caption) md += `*${img.caption}*\n`
+            }
+            md += `\n`
+        }
+        md += `---\n\n`
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${CONFIG.siteName}_备份_${new Date().toISOString().slice(0, 10)}.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+}
+
 /* ===== 操作日志 ===== */
 const logActionFilter = ref('all');
 
@@ -379,6 +470,9 @@ onMounted(() => {
                 </div>
                 <div :class="['admin-nav-item', { active: activeTab === 'logs' }]" @click="activeTab = 'logs'">
                     <span class="admin-nav-icon">📋</span> 操作日志
+                </div>
+                <div :class="['admin-nav-item', { active: activeTab === 'export' }]" @click="activeTab = 'export'">
+                    <span class="admin-nav-icon">💾</span> 数据备份
                 </div>
             </div>
 
@@ -572,6 +666,65 @@ onMounted(() => {
                         </tbody>
                     </table>
                     <div v-if="filteredLogs.length === 0" class="admin-empty">暂无操作记录</div>
+                </div>
+
+                <!-- ===== 数据备份 ===== -->
+                <div v-if="activeTab === 'export' && !isLoading" class="admin-section">
+                    <h2 class="admin-section-title">数据备份</h2>
+                    <p class="admin-section-desc">选择需要导出的内容，生成 Markdown 文件下载到本地</p>
+
+                    <!-- 筛选栏 -->
+                    <div class="export-filters">
+                        <div class="export-filter-group">
+                            <label class="export-filter-label">类型</label>
+                            <select v-model="exportTypeFilter" class="admin-select">
+                                <option value="all">全部类型</option>
+                                <option v-for="(label, type) in typeLabelMap" :key="type" :value="type">{{ label }}</option>
+                            </select>
+                        </div>
+                        <div class="export-filter-group">
+                            <label class="export-filter-label">开始日期</label>
+                            <input type="date" v-model="exportTimeStart" class="admin-search" style="width:160px">
+                        </div>
+                        <div class="export-filter-group">
+                            <label class="export-filter-label">结束日期</label>
+                            <input type="date" v-model="exportTimeEnd" class="admin-search" style="width:160px">
+                        </div>
+                    </div>
+
+                    <!-- 操作栏 -->
+                    <div class="export-toolbar">
+                        <label class="export-check-all">
+                            <input type="checkbox" v-model="exportSelectAll">
+                            <span>全选</span>
+                        </label>
+                        <span class="export-count">已选 {{ exportCheckedCount }} / {{ exportableContents.length }} 条</span>
+                        <button class="admin-btn admin-btn-primary" @click="exportSelectedMarkdown" :disabled="exportCheckedCount === 0">
+                            导出选中内容
+                        </button>
+                    </div>
+
+                    <!-- 内容列表 -->
+                    <div class="export-list">
+                        <div v-for="c in exportableContents" :key="c.id" class="export-item">
+                            <label class="export-item-check">
+                                <input type="checkbox" :checked="checkedExportIds.has(c.id)" @change="toggleExportCheck(c.id)">
+                            </label>
+                            <div class="export-item-info">
+                                <div class="export-item-title">{{ c.title }}</div>
+                                <div class="export-item-meta">
+                                    <span>{{ getContentTypeLabel(c.type) }}</span>
+                                    <span class="export-sep">·</span>
+                                    <span>{{ getAuthorName(c.author_id) }}</span>
+                                    <span class="export-sep">·</span>
+                                    <span :style="{ color: getVisibilityColor(c.visibility) }">{{ getVisibilityIcon(c.visibility) }} {{ getVisibilityLabel(c.visibility) }}</span>
+                                    <span class="export-sep">·</span>
+                                    <span>{{ formatDate(new Date(c.created_at).getTime()) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-if="exportableContents.length === 0" class="admin-empty">暂无匹配的内容</div>
                 </div>
 
             </div>
@@ -1236,20 +1389,85 @@ onMounted(() => {
     background-color: rgba(74, 92, 107, 0.12);
 }
 
+/* ===== 数据备份 ===== */
+.admin-section-desc {
+    font-size: 14px; color: #636E72; margin-bottom: 24px;
+}
+
+.export-filters {
+    display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+
+.export-filter-group {
+    display: flex; flex-direction: column; gap: 6px;
+}
+
+.export-filter-label {
+    font-size: 13px; color: #636E72; font-weight: 500;
+}
+
+.export-toolbar {
+    display: flex; align-items: center; gap: 20px;
+    padding: 14px 0; border-top: 1px solid #E8E7E4; border-bottom: 1px solid #E8E7E4;
+    margin-bottom: 12px;
+}
+
+.export-check-all {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: #2D3436; cursor: pointer;
+}
+
+.export-check-all input { width: 16px; height: 16px; cursor: pointer; }
+
+.export-count {
+    font-size: 14px; color: #636E72; flex: 1;
+}
+
+.export-list {
+    max-height: 55vh; overflow-y: auto;
+}
+
+.export-item {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 4px; border-bottom: 1px solid #F0EFEC;
+    transition: background-color 0.15s;
+}
+
+.export-item:hover { background-color: rgba(0, 0, 0, 0.02); }
+
+.export-item-check input {
+    width: 18px; height: 18px; cursor: pointer; accent-color: var(--brand-color, #4A5C6B);
+}
+
+.export-item-info { flex: 1; min-width: 0; }
+
+.export-item-title {
+    font-size: 15px; font-weight: 500; color: #2D3436;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.export-item-meta {
+    font-size: 13px; color: #636E72; display: flex; gap: 6px; flex-wrap: wrap;
+}
+
+.export-sep { color: #D0D0D0; }
+
 /* ===== 响应式 ===== */
 @media (max-width: 768px) {
     .admin-sidebar {
-        width: 160px;
-        padding: 16px 8px;
+        width: 120px;
+        padding: 12px 6px;
     }
 
     .admin-content {
-        padding: 20px 16px;
+        padding: 16px 12px;
     }
 
     .admin-nav-item {
-        padding: 8px 10px;
-        font-size: 13px;
+        padding: 6px 8px;
+        font-size: 12px;
+        gap: 6px;
     }
 
     .storage-grid {
@@ -1257,7 +1475,33 @@ onMounted(() => {
     }
 
     .admin-search {
-        width: 140px;
+        width: 120px;
+    }
+
+    .export-filters {
+        flex-direction: column; gap: 12px;
+    }
+
+    .export-toolbar {
+        flex-wrap: wrap; gap: 12px;
+    }
+
+    .export-item-title {
+        font-size: 14px; max-width: 200px;
+    }
+}
+
+@media (max-width: 480px) {
+    .admin-sidebar {
+        width: 80px;
+    }
+
+    .admin-nav-item span:not(.admin-nav-icon) {
+        display: none;
+    }
+
+    .export-item-meta {
+        font-size: 12px;
     }
 }
 </style>
