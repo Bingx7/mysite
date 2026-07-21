@@ -126,7 +126,6 @@ onUnmounted(() => { stopClock(); });
         <div v-if="showToast" :class="['toast', `toast-${toastType}`]">{{ toastMessage }}</div>
 
         <template v-if="appReady">
-            <!-- 登录页 -->
             <LoginPage
                 v-if="isLoginPage"
                 :loginForm="loginForm"
@@ -244,6 +243,10 @@ onUnmounted(() => { stopClock(); });
                 @reset="handleResetTheme"
             />
         </template>
+        <div v-else class="app-loading">
+            <div class="app-loading-spinner"></div>
+            <p class="app-loading-text">加载中...</p>
+        </div>
     </div>
 </template>
 
@@ -252,6 +255,26 @@ onUnmounted(() => { stopClock(); });
     min-height: 100vh;
     background-color: transparent;
     position: relative;
+}
+
+/* Loading */
+.app-loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100vh; gap: 20px;
+}
+
+.app-loading-spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #E8E7E4;
+    border-top-color: var(--brand-color, #4A5C6B);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.app-loading-text {
+    font-size: 14px; color: #6B6A67; margin: 0;
 }
 
 /* Toast */

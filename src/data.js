@@ -258,14 +258,18 @@ export async function getStorageUsage() {
 
 /** 检查是否有已登录的 session，返回用户信息 */
 export async function restoreSession() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session?.user) return null
+    try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) return null
 
-    const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
 
-    return profile ? { ...session.user, ...profile } : null
+        return profile ? { ...session.user, ...profile } : null
+    } catch {
+        return null
+    }
 }

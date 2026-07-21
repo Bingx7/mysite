@@ -126,13 +126,15 @@ export function useAuth() {
     }
 
     async function initAuth(afterLoginCallback) {
-        const user = await restoreSession()
-        if (user) {
-            currentUser.value = user
-            isLoggedIn.value = true
-            isLoginPage.value = false
-            if (afterLoginCallback) await afterLoginCallback()
-        }
+        try {
+            const user = await restoreSession()
+            if (user) {
+                currentUser.value = user
+                isLoggedIn.value = true
+                isLoginPage.value = false
+                if (afterLoginCallback) await afterLoginCallback()
+            }
+        } catch { /* 网络异常，以访客身份进入 */ }
         appReady.value = true
     }
 
