@@ -52,6 +52,19 @@ const isSuperAdmin = computed(() => currentUser.value?.level === LEVEL.SUPER_ADM
 /* ===== 认证 ===== */
 async function onLogin() {
     await handleLogin();
+    if (isLoggedIn.value) {
+        selectedContent.value = null;
+        allContents.value = [];
+        contentImagesMap.value = {};
+        await loadContents(currentUser.value);
+        await loadSystemSettings();
+    }
+}
+
+async function onBrowseAsGuest() {
+    isLoginPage.value = false;
+    await loadContents(null);
+    await loadSystemSettings();
 }
 
 async function onRegister() {
@@ -136,7 +149,7 @@ onUnmounted(() => { stopClock(); });
                 @login="onLogin"
                 @register="onRegister"
                 @switchMode="isRegisterMode = $event"
-                @browseAsGuest="isLoginPage = false"
+                @browseAsGuest="onBrowseAsGuest"
                 @update:loginForm="loginForm = $event"
                 @update:registerForm="registerForm = $event"
             />

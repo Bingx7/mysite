@@ -12,6 +12,28 @@ import {
 } from '../api'
 import { formatDate } from '../utils'
 
+/* ===== 本地缓存 ===== */
+function getCacheKey(tab) { return `cache_contents_${tab}` }
+
+function readCache(tab) {
+    try {
+        const raw = localStorage.getItem(getCacheKey(tab))
+        if (!raw) return null
+        const { data, images, time } = JSON.parse(raw)
+        return { data, images, time }
+    } catch { return null }
+}
+
+function writeCache(tab, data, images) {
+    try {
+        localStorage.setItem(getCacheKey(tab), JSON.stringify({ data, images, time: Date.now() }))
+    } catch { /* localStorage 满了就忽略 */ }
+}
+
+function clearCache(tab) {
+    try { localStorage.removeItem(getCacheKey(tab)) } catch { /* ignore */ }
+}
+
 /* ===== 内容状态管理 ===== */
 export function useContents() {
     const allContents = ref([])
@@ -35,8 +57,17 @@ export function useContents() {
     const formEndDate = ref('')
 
     async function loadContents(currentUser) {
-        if (!currentUser) return
         contentLoading.value = true
+        // 先读缓存立即显示
+        const cached = readCache(currentTab.value)
+        if (cached) {
+            const visible = getVisibleContents(cached.data, currentUser)
+            visible.sort((a, b) => b.created_at - a.created_at)
+            allContents.value = visible
+            contentImagesMap.value = cached.images || {}
+            contentLoading.value = false
+        }
+        // 同时从 Supabase 拉最新数据
         try {
             let contents
             if (currentTab.value === 'all') {
@@ -57,6 +88,8 @@ export function useContents() {
             }))
             contentImagesMap.value = imageMap
             allContents.value = contents
+            // 写入缓存
+            writeCache(currentTab.value, contents, imageMap)
         } finally {
             contentLoading.value = false
         }
@@ -153,9 +186,13 @@ export function useContents() {
         try {
             if (modalMode.value === 'create') {
                 await createContentApi(contentData)
+                clearCache(currentTab.value)
+                clearCache('all')
                 showToastMessage('发布成功')
             } else {
                 await updateContentApi(selectedContent.value.id, contentData)
+                clearCache(currentTab.value)
+                clearCache('all')
                 showToastMessage('更新成功')
             }
             closeModal()
@@ -169,6 +206,8 @@ export function useContents() {
     async function handleDeleteContent(content, showToastMessage) {
         try {
             await deleteContentApi(content.id)
+            clearCache(currentTab.value)
+            clearCache('all')
             selectedContent.value = null
             showToastMessage('已删除')
             return true
