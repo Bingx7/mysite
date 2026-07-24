@@ -36,7 +36,7 @@ export function applyTheme() {
     root.style.setProperty('--brand-color', currentTheme.brandColor);
     
     const brightnessConfig = {
-        light: { bg: '#F5F4F1', card: 'rgba(255,255,255,0.85)', text: '#2D3436', secondary: '#636E72', border: '#E8E7E4' },
+        light: { bg: '#F5F1E8', card: 'rgba(253,251,247,0.88)', text: '#3A2E24', secondary: '#5A4E3C', border: '#E8E4DA' },
         neutral: { bg: '#E8E8E8', card: 'rgba(255,255,255,0.7)', text: '#333333', secondary: '#555555', border: '#D0D0D0' },
         dark: { bg: '#1A1A1A', card: 'rgba(40,40,40,0.85)', text: '#E0E0E0', secondary: '#888888', border: '#333333' }
     };

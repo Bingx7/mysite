@@ -141,6 +141,5 @@ const fontSizeOptions = computed(() => getFontSizeOptions())
 .settings-footer .btn-primary { flex: 1; }
 
 .btn { padding: 12px 24px; border-radius: 10px; border: none; font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; }
-.btn-primary { background-color: var(--brand-color, #4A5C6B); color: white; }
-.btn-secondary { background-color: rgba(0, 0, 0, 0.05); color: var(--text-color, #2D3436); }
+
 </style>

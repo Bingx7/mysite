@@ -34,7 +34,7 @@ const emit = defineEmits(['switchTab', 'closeSidebar', 'logout', 'create', 'admi
         </ul>
         <div class="sidebar-bottom">
             <button v-if="currentUser" class="sidebar-btn sidebar-btn-primary" @click="$emit('create')">+ 新建</button>
-            <button v-if="isSuperAdmin" class="sidebar-btn sidebar-btn-primary" @click="$emit('admin')" style="background:#EC4899;margin-top:8px;">⚙ 后台管理</button>
+            <button v-if="isSuperAdmin" class="sidebar-btn sidebar-btn-primary" @click="$emit('admin')" style="background:var(--warning);margin-top:8px;">⚙ 后台管理</button>
             <button v-if="currentUser" class="sidebar-btn sidebar-btn-secondary" @click="$emit('logout')">退出登录</button>
         </div>
     </div>
@@ -110,8 +110,8 @@ const emit = defineEmits(['switchTab', 'closeSidebar', 'logout', 'create', 'admi
     width: 100%; padding: 14px; border-radius: 10px; border: none;
     font-size: 15px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
 }
-.sidebar-btn-primary { background-color: var(--brand-color, #4A5C6B); color: white; }
-.sidebar-btn-secondary { background-color: transparent; color: var(--text-secondary-color, #636E72); }
+.sidebar-btn-primary { background-color: var(--btn-primary-bg); color: var(--btn-primary-text); }
+.sidebar-btn-secondary { background-color: transparent; color: var(--btn-secondary-text); }
 
 /* 桌面端内容区缩进（由 App.vue 的 .content 配合） */
 </style>

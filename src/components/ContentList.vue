@@ -190,7 +190,7 @@ watch(searchQuery, () => { currentPage.value = 1 })
 .album-stats { font-size: 13px; color: var(--text-secondary-color, #636E72); }
 
 .card {
-    background-color: rgba(255, 255, 255, 0.85); border-radius: 14px; padding: 24px;
+    background-color: var(--card-bg); border-radius: 14px; padding: 24px;
     margin-bottom: 20px; cursor: pointer; transition: all 0.3s;
 }
 .card:hover { transform: translateY(-3px); }

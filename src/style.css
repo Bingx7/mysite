@@ -1,17 +1,25 @@
 :root {
-    --primary: #3B82F6;
-    --primary-dark: #2563EB;
+    --primary: #4A7C9D;
+    --primary-dark: #3B6B86;
     --partner: #EC4899;
-    --success: #10B981;
-    --warning: #F59E0B;
-    --danger: #EF4444;
-    --bg: #F8FAFC;
-    --bg-card: #FFFFFF;
-    --text: #1E293B;
-    --text-secondary: #64748B;
-    --border: #E2E8F0;
+    --success: #6B7D4F;
+    --warning: #D4A84B;
+    --danger: #B55A4B;
+    --bg: #F5F1E8;
+    --bg-card: #FDFBF7;
+    --text: #3A2E24;
+    --text-secondary: #5A4E3E;
+    --border: #E8E4DA;
     --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
     --radius: 12px;
+    --brand-color: #4A5C6B;
+
+    --btn-primary-bg: #4A7C9D;
+    --btn-primary-text: #FFFFFF;
+    --btn-secondary-bg: rgba(0, 0, 0, 0.04);
+    --btn-secondary-text: #5A4E3E;
+    --btn-danger-bg: #B55A4B;
+    --btn-danger-text: #FFFFFF;
 }
 
 * {
@@ -45,8 +53,6 @@ body {
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-    filter: blur(var(--background-blur, 0px));
-    transform: scale(1.1);
     z-index: -2;
 }
 
@@ -57,6 +63,36 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(245, 244, 241, 0.4);
+    background-color: rgba(245, 241, 232, 0.55);
     z-index: -1;
+}
+
+/* ===== 全局按钮 ===== */
+.btn {
+    padding: 12px 24px;
+    border-radius: 10px;
+    border: none;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+.btn:hover { opacity: 0.85; }
+.btn:active { opacity: 0.7; }
+
+.btn-primary {
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+}
+.btn-secondary {
+    background-color: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+}
+.btn-danger {
+    background-color: var(--btn-danger-bg);
+    color: var(--btn-danger-text);
+}
+.btn-full {
+    width: 100%;
+    padding: 16px;
 }

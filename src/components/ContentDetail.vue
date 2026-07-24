@@ -73,13 +73,7 @@ const canDelete = computed(() => canEdit.value)
 
 .detail-actions { display: flex; gap: 16px; }
 
-.btn {
-    padding: 12px 24px; border-radius: 10px; border: none;
-    font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.2s;
-}
-.btn-primary { background-color: var(--brand-color, #4A5C6B); color: white; }
-.btn-secondary { background-color: rgba(0, 0, 0, 0.05); color: var(--text-color, #2D3436); }
-.btn-danger { background-color: #EF4444; color: white; }
+
 
 @media (max-width: 768px) { .detail-images { grid-template-columns: 1fr; } }
 </style>

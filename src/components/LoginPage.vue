@@ -139,8 +139,7 @@ const emit = defineEmits(['login', 'register', 'switchMode', 'browseAsGuest', 'u
     font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.2s;
 }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-primary { background-color: var(--brand-color, #4A5C6B); color: white; }
-.btn-full { width: 100%; padding: 16px; }
+
 
 .login-switch, .login-guest { font-size: 14px; color: var(--text-secondary-color, #636E72); }
 

@@ -115,8 +115,7 @@ const emit = defineEmits([
 .form-textarea { width: 100%; padding: 14px 16px; border: 1px solid var(--border-color, #E8E7E4); border-radius: 10px; font-size: 15px; background-color: rgba(255, 255, 255, 0.7); color: var(--text-color, #2D3436); min-height: 120px; resize: vertical; }
 
 .btn { padding: 12px 24px; border-radius: 10px; border: none; font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.2s; }
-.btn-primary { background-color: var(--brand-color, #4A5C6B); color: white; }
-.btn-secondary { background-color: rgba(0, 0, 0, 0.05); color: var(--text-color, #2D3436); }
+
 
 .date-range { display: flex; align-items: center; gap: 14px; }
 .date-range input { flex: 1; }

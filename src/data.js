@@ -28,6 +28,7 @@ export async function addUser(user) {
         id: user.id,
         username: user.username,
         name: user.name,
+        email: user.email || null,
         avatar: user.avatar || '👤',
         level: user.level || 1
     }).select().single()
@@ -216,10 +217,16 @@ export async function getSystemSettings() {
     }
 }
 
-/** 根据用户名查找邮箱（用于用户名登录） */
+/** 根据用户名查找完整 profile（用于用户名登录） */
+export async function getProfileByUsername(username) {
+    const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    return data || null
+}
+
+/** 根据用户名查找邮箱（用于用户名登录，兼容旧调用） */
 export async function getEmailByUsername(username) {
-    const { data } = await supabase.from('profiles').select('email').eq('username', username).maybeSingle()
-    return data?.email || null
+    const profile = await getProfileByUsername(username)
+    return profile?.email || null
 }
 
 /** 更新系统设置 */
@@ -262,11 +269,29 @@ export async function restoreSession() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.user) return null
 
-        const { data: profile } = await supabase
+        let { data: profile } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single()
+
+        // profile 丢失时自动重建
+        if (!profile) {
+            const meta = session.user.user_metadata || {}
+            const username = meta.username || session.user.email?.split('@')[0] || 'user'
+            const name = meta.name || '用户'
+            const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+            const level = count === 0 ? 3 : 1
+            profile = await addUser({
+                id: session.user.id,
+                username,
+                name,
+                email: session.user.email,
+                avatar: '👤',
+                level
+            })
+            console.log('已自动重建 profile:', username)
+        }
 
         return profile ? { ...session.user, ...profile } : null
     } catch {

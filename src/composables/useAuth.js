@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { supabase } from '../supabase'
-import { restoreSession, getUserByUsername, getEmailByUsername } from '../data'
+import { restoreSession, getUserByUsername, getProfileByUsername, addUser } from '../data'
 import { getCurrentTime } from '../utils'
 
 /* ===== 认证状态管理 ===== */
@@ -46,11 +46,16 @@ export function useAuth() {
         try {
             let email = account
             if (!account.includes('@')) {
-                email = await getEmailByUsername(account)
-                if (!email) {
+                const profile = await getProfileByUsername(account)
+                if (!profile) {
                     showToastMessage('用户名不存在', 'error')
                     return
                 }
+                if (!profile.email) {
+                    showToastMessage('该账号未绑定邮箱，请直接用邮箱登录', 'error')
+                    return
+                }
+                email = profile.email
             }
             const { data, error } = await supabase.auth.signInWithPassword({ email, password })
             if (error) throw error
@@ -115,14 +120,40 @@ export function useAuth() {
     }
 
     async function loadUserProfile(authUser, afterLoginCallback) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
-        if (profile) {
-            currentUser.value = { ...authUser, ...profile }
-            isLoggedIn.value = true
-            isLoginPage.value = false
-            showToastMessage(`欢迎回来，${profile.name}`)
-            if (afterLoginCallback) await afterLoginCallback()
+        // 尝试获取 profile
+        let { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
+        
+        // profile 不存在时自动从 auth 元数据重建
+        if (!profile) {
+            const meta = authUser.user_metadata || {}
+            const username = meta.username || authUser.email?.split('@')[0] || 'user'
+            const name = meta.name || '用户'
+            try {
+                // 只有系统里没有其他用户时，才给 SUPER_ADMIN
+                const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true })
+                const level = count === 0 ? 3 : 1
+                const newProfile = await addUser({
+                    id: authUser.id,
+                    username,
+                    name,
+                    email: authUser.email,
+                    avatar: '👤',
+                    level
+                })
+                profile = newProfile
+                showToastMessage('已自动修复账号数据')
+            } catch (e) {
+                showToastMessage('账号数据异常，请联系管理员', 'error')
+                console.error('自动创建 profile 失败:', e)
+                return
+            }
         }
+        
+        currentUser.value = { ...authUser, ...profile }
+        isLoggedIn.value = true
+        isLoginPage.value = false
+        showToastMessage(`欢迎回来，${profile.name}`)
+        if (afterLoginCallback) await afterLoginCallback()
     }
 
     async function initAuth(afterLoginCallback) {

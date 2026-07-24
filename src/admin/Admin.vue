@@ -140,7 +140,7 @@ async function handleSaveUser() {
     } else {
         loading.value = true;
         try {
-            const updates = { name, level, avatar };
+            const updates = { name, email, level, avatar };
             await updateUser(editingUserId.value, updates);
             await addLog({
                 userId: props.currentUser.id,
@@ -745,8 +745,8 @@ onMounted(() => {
                         </div>
                     </div>
                     <div class="admin-form-group">
-                        <label class="admin-form-label">邮箱{{ userModalMode === 'edit' ? '（不可修改）' : '' }}</label>
-                        <input v-model="userForm.email" type="email" class="admin-form-input" placeholder="请输入邮箱" :disabled="userModalMode === 'edit'">
+                        <label class="admin-form-label">邮箱</label>
+                        <input v-model="userForm.email" type="email" class="admin-form-input" placeholder="请输入邮箱">
                     </div>
                     <div class="admin-form-group">
                         <label class="admin-form-label">密码{{ userModalMode === 'edit' ? '（留空不修改）' : '' }}</label>
@@ -877,8 +877,8 @@ onMounted(() => {
 }
 
 .admin-close-btn:hover {
-    border-color: var(--brand-color, #4A5C6B);
-    color: var(--brand-color, #4A5C6B);
+    border-color: var(--btn-primary-bg);
+    color: var(--btn-primary-bg);
 }
 
 /* ===== 主体布局 ===== */
@@ -1015,13 +1015,13 @@ onMounted(() => {
 }
 
 .admin-btn-primary {
-    background-color: var(--brand-color, #4A5C6B);
-    color: white;
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
 }
 
 .admin-btn-secondary {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: #2D3436;
+    background-color: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
 }
 
 .admin-btn-sm {
@@ -1036,13 +1036,13 @@ onMounted(() => {
 }
 
 .admin-btn-sm:hover {
-    border-color: var(--brand-color, #4A5C6B);
-    color: var(--brand-color, #4A5C6B);
+    border-color: var(--btn-primary-bg);
+    color: var(--btn-primary-bg);
 }
 
 .admin-btn-sm-danger:hover {
-    border-color: #EF4444;
-    color: #EF4444;
+    border-color: var(--btn-danger-bg);
+    color: var(--btn-danger-bg);
 }
 
 .admin-btn-sm:disabled {
