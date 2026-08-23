@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { CONTENT_TYPE, visibilityConfig } from '../config'
 import { formatDate, formatDateRange, getVisibilityLabel, getVisibilityIcon, getVisibilityColor } from '../utils'
+import { canEditContent, canDeleteContent } from '../permissions'
 import Lightbox from './Lightbox.vue'
 
 const props = defineProps({
@@ -18,13 +19,8 @@ const lightboxSrc = ref('')
 function openLightbox(url) { lightboxSrc.value = url }
 function closeLightbox() { lightboxSrc.value = '' }
 
-const canEdit = computed(() => {
-    if (!props.currentUser) return false
-    if (props.currentUser.level === 3) return true
-    return props.currentUser.id === props.content?.author_id
-})
-
-const canDelete = computed(() => canEdit.value)
+const canEdit = computed(() => canEditContent(props.content, props.currentUser))
+const canDelete = computed(() => canDeleteContent(props.content, props.currentUser))
 </script>
 
 <template>
