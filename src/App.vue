@@ -28,7 +28,7 @@ const {
 
 const contents = useContents();
 const {
-    allContents, contentImagesMap, contentLoading, selectedContent, selectedContentImages,
+    allContents, contentImagesMap, authorsMap, contentLoading, selectedContent, selectedContentImages,
     currentTab, sysSettings, folderColors,
     isModalOpen, modalMode, formImages, formCaptions,
     formTitle, formBody, formDescription, formVisibility,
@@ -96,7 +96,7 @@ async function onSaveContent() {
 
 async function onDeleteContent(content) {
     if (!confirm('确定要删除吗？')) return;
-    const success = await handleDeleteContent(content, showToastMessage);
+    const success = await handleDeleteContent(content, showToastMessage, currentUser.value);
     if (success) {
         selectedContent.value = null;
         await loadContents(currentUser.value);
@@ -198,6 +198,7 @@ onUnmounted(() => { stopClock(); });
                             :images="selectedContentImages"
                             :currentUser="currentUser"
                             :isLoggedIn="isLoggedIn"
+                            :author="authorsMap[selectedContent.author_id]"
                             @back="goBack"
                             @edit="openEditModal"
                             @delete="onDeleteContent"
@@ -211,6 +212,7 @@ onUnmounted(() => { stopClock(); });
                             v-else
                             :contents="allContents"
                             :imagesMap="contentImagesMap"
+                            :authorsMap="authorsMap"
                             :currentTab="currentTab"
                             :folderColors="folderColors"
                             @select="onSelectContent"

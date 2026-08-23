@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { VISIBILITY, CONTENT_TYPE } from '../config'
 import { getVisibleContents } from '../permissions'
-import { getSystemSettings } from '../data'
+import { getSystemSettings, getUsers } from '../data'
 import {
     getContentsByType,
     getImagesByContentId,
@@ -38,6 +38,7 @@ function clearCache(tab) {
 export function useContents() {
     const allContents = ref([])
     const contentImagesMap = ref({})
+    const authorsMap = ref({})        // { [userId]: { name, avatar, level } }
     const selectedContent = ref(null)
     const selectedContentImages = ref([])
     const currentTab = ref(CONTENT_TYPE.DIARY)
@@ -58,15 +59,44 @@ export function useContents() {
 
     async function loadContents(currentUser) {
         contentLoading.value = true
+        // 内容缓存版本号：如果数据结构变了，改版本号会强制废弃老缓存
+        const CACHE_VERSION = 2
+        function getCacheKeyV(tab) { return `${getCacheKey(tab)}__v${CACHE_VERSION}` }
+        function readCacheV(tab) {
+            try {
+                const raw = localStorage.getItem(getCacheKeyV(tab))
+                if (!raw) return null
+                const { data, images, time } = JSON.parse(raw)
+                return { data, images, time }
+            } catch { return null }
+        }
+        function writeCacheV(tab, data, images) {
+            try {
+                localStorage.setItem(getCacheKeyV(tab), JSON.stringify({ data, images, time: Date.now() }))
+            } catch { /* localStorage 满了就忽略 */ }
+        }
+        // 清理旧版本缓存
+        try { localStorage.removeItem(getCacheKey(currentTab.value)) } catch { /* ignore */ }
+
         // 先读缓存立即显示
-        const cached = readCache(currentTab.value)
+        const cached = readCacheV(currentTab.value)
         if (cached) {
             const visible = getVisibleContents(cached.data, currentUser)
-            visible.sort((a, b) => b.created_at - a.created_at)
+            visible.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             allContents.value = visible
             contentImagesMap.value = cached.images || {}
             contentLoading.value = false
         }
+
+        // 同时拉取用户列表（用于显示作者名），缓存里暂不处理作者，直接每次拉
+        const usersPromise = getUsers().then(list => {
+            const map = {}
+            for (const u of list) {
+                map[u.id] = { name: u.name || u.username || '未知', avatar: u.avatar || '👤', level: u.level }
+            }
+            authorsMap.value = map
+        }).catch(() => { authorsMap.value = {} })
+
         // 同时从 Supabase 拉最新数据
         try {
             let contents
@@ -79,7 +109,7 @@ export function useContents() {
             }
 
             contents = getVisibleContents(contents, currentUser)
-            contents.sort((a, b) => b.created_at - a.created_at)
+            contents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
             const imageMap = {}
             await Promise.all(contents.map(async (c) => {
@@ -89,8 +119,11 @@ export function useContents() {
             contentImagesMap.value = imageMap
             allContents.value = contents
             // 写入缓存
-            writeCache(currentTab.value, contents, imageMap)
+            writeCacheV(currentTab.value, contents, imageMap)
+        } catch (e) {
+            console.error('loadContents error:', e)
         } finally {
+            await usersPromise
             contentLoading.value = false
         }
     }
@@ -170,6 +203,11 @@ export function useContents() {
             showToastMessage('请输入标题', 'error')
             return
         }
+        // 编辑权限二次校验：非作者即使拿到编辑弹窗也不能保存
+        if (modalMode.value === 'edit' && selectedContent.value && selectedContent.value.author_id !== currentUser.id) {
+            showToastMessage('只有作者本人可以修改', 'error')
+            return
+        }
         const contentData = {
             authorId: currentUser.id,
             type: currentTab.value,
@@ -203,7 +241,12 @@ export function useContents() {
         }
     }
 
-    async function handleDeleteContent(content, showToastMessage) {
+    async function handleDeleteContent(content, showToastMessage, currentUser) {
+        // 删除权限二次校验：仅作者本人
+        if (currentUser && content.author_id !== currentUser.id) {
+            showToastMessage('只有作者本人可以删除', 'error')
+            return false
+        }
         try {
             await deleteContentApi(content.id)
             clearCache(currentTab.value)
@@ -235,7 +278,7 @@ export function useContents() {
     const folderColors = ['#FF6B9D', '#4ECDC4', '#1A535C', '#FFE66D', '#FF9F1C', '#9B5DE5', '#00BBF9', '#00F5D4']
 
     return {
-        allContents, contentImagesMap, contentLoading, selectedContent, selectedContentImages,
+        allContents, contentImagesMap, authorsMap, contentLoading, selectedContent, selectedContentImages,
         currentTab, sysSettings, folderColors,
         isModalOpen, modalMode, formImages, formCaptions,
         formTitle, formBody, formDescription, formVisibility,

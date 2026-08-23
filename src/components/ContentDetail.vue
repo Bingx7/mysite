@@ -9,7 +9,8 @@ const props = defineProps({
     content: Object,
     images: Array,
     currentUser: Object,
-    isLoggedIn: Boolean
+    isLoggedIn: Boolean,
+    author: Object
 })
 
 const emit = defineEmits(['back', 'edit', 'delete'])
@@ -19,6 +20,9 @@ const lightboxSrc = ref('')
 function openLightbox(url) { lightboxSrc.value = url }
 function closeLightbox() { lightboxSrc.value = '' }
 
+const authorName = computed(() => props.author?.name || '未知作者')
+const authorAvatar = computed(() => props.author?.avatar || '👤')
+
 const canEdit = computed(() => canEditContent(props.content, props.currentUser))
 const canDelete = computed(() => canDeleteContent(props.content, props.currentUser))
 </script>
@@ -27,6 +31,12 @@ const canDelete = computed(() => canDeleteContent(props.content, props.currentUs
     <div v-if="content" class="content-detail">
         <button class="btn btn-secondary" @click="$emit('back')" style="margin-bottom:20px;">← 返回</button>
         <div class="detail-header">
+            <div class="detail-author-row">
+                <span class="detail-author-badge">
+                    <span class="detail-author-avatar">{{ authorAvatar }}</span>
+                    <span class="detail-author-name">{{ authorName }}</span>
+                </span>
+            </div>
             <div class="detail-title">{{ content.title }}</div>
             <div class="detail-meta">
                 <span :style="{ color: getVisibilityColor(content.visibility) }">{{ getVisibilityIcon(content.visibility) }} {{ getVisibilityLabel(content.visibility) }}</span>
@@ -56,6 +66,21 @@ const canDelete = computed(() => canDeleteContent(props.content, props.currentUs
 .content-detail { padding: 0; }
 
 .detail-header { margin-bottom: 32px; }
+.detail-author-row { margin-bottom: 10px; }
+.detail-author-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(232, 200, 122, 0.24);
+    padding: 6px 14px;
+    border-radius: 999px;
+}
+.detail-author-avatar { font-size: 18px; line-height: 1; }
+.detail-author-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color, #5A4E3C);
+}
 .detail-title { font-size: 28px; font-weight: 700; color: var(--text-color, #2D3436); margin: 20px 0; }
 .detail-meta { font-size: 14px; color: var(--text-secondary-color, #636E72); display: flex; flex-wrap: wrap; gap: 16px; }
 

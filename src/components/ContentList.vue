@@ -6,11 +6,20 @@ import { formatDate, formatDateRange, truncateText, getVisibilityLabel, getVisib
 const props = defineProps({
     contents: Array,
     imagesMap: Object,
+    authorsMap: Object,
     currentTab: String,
     folderColors: Array
 })
 
 const emit = defineEmits(['select'])
+
+function getAuthorName(authorId) {
+    return props.authorsMap?.[authorId]?.name || '未知作者'
+}
+
+function getAuthorAvatar(authorId) {
+    return props.authorsMap?.[authorId]?.avatar || '👤'
+}
 
 const searchQuery = ref('')
 const currentPage = ref(1)
@@ -53,11 +62,17 @@ watch(searchQuery, () => { currentPage.value = 1 })
     <div v-if="currentTab !== CONTENT_TYPE.ALBUM" class="content-list">
         <div v-for="content in pagedContents" :key="content.id" class="card card-shadow" @click="$emit('select', content)">
             <div class="card-header">
-                <div class="card-title">{{ content.title }}</div>
-                <div class="card-meta">
-                    <span :style="{ color: getVisibilityColor(content.visibility) }">{{ getVisibilityIcon(content.visibility) }} {{ getVisibilityLabel(content.visibility) }}</span>
-                    <span>📅 {{ formatDate(new Date(content.created_at).getTime()) }}</span>
+                <div class="card-top-row">
+                    <div class="card-author">
+                        <span class="card-author-avatar">{{ getAuthorAvatar(content.author_id) }}</span>
+                        <span class="card-author-name">{{ getAuthorName(content.author_id) }}</span>
+                    </div>
+                    <div class="card-meta">
+                        <span :style="{ color: getVisibilityColor(content.visibility) }">{{ getVisibilityIcon(content.visibility) }} {{ getVisibilityLabel(content.visibility) }}</span>
+                        <span>📅 {{ formatDate(new Date(content.created_at).getTime()) }}</span>
+                    </div>
                 </div>
+                <div class="card-title">{{ content.title }}</div>
             </div>
             <div v-if="content.body || content.description" class="card-body">
                 <div class="card-text">{{ truncateText(content.body || content.description, 150) }}</div>
@@ -101,6 +116,7 @@ watch(searchQuery, () => { currentPage.value = 1 })
                 </div>
                 <div class="album-info">
                     <div class="album-title">{{ content.title }}</div>
+                    <div class="album-author">{{ getAuthorAvatar(content.author_id) }} {{ getAuthorName(content.author_id) }}</div>
                     <div class="album-stats">
                         <span :style="{ color: getVisibilityColor(content.visibility) }">{{ getVisibilityIcon(content.visibility) }}</span>
                         <span v-if="content.start_date">📅 {{ formatDateRange(content.start_date ? new Date(content.start_date).getTime() : null, content.end_date ? new Date(content.end_date).getTime() : null) }}</span>
@@ -186,7 +202,18 @@ watch(searchQuery, () => { currentPage.value = 1 })
 }
 
 .album-info { text-align: center; }
-.album-title { font-size: 15px; font-weight: 700; color: var(--text-color, #2D3436); margin-bottom: 6px; letter-spacing: -0.02em; }
+.album-title { font-size: 15px; font-weight: 700; color: var(--text-color, #2D3436); margin-bottom: 4px; letter-spacing: -0.02em; }
+.album-author {
+    font-size: 12px;
+    color: var(--text-secondary-color, #5A4E3C);
+    margin-bottom: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: rgba(232, 200, 122, 0.22);
+    padding: 2px 10px;
+    border-radius: 999px;
+}
 .album-stats { font-size: 13px; color: var(--text-secondary-color, #636E72); }
 
 .card {
@@ -197,6 +224,28 @@ watch(searchQuery, () => { currentPage.value = 1 })
 .card-shadow { box-shadow: 0 5px 16px rgba(0, 0, 0, 0.08); }
 
 .card-header { margin-bottom: 16px; }
+.card-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.card-author {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(232, 200, 122, 0.22);
+    padding: 4px 12px;
+    border-radius: 999px;
+}
+.card-author-avatar { font-size: 16px; line-height: 1; }
+.card-author-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-color, #5A4E3C);
+}
 .card-title { font-size: 18px; font-weight: 600; color: var(--text-color, #2D3436); margin-bottom: 10px; }
 .card-meta { font-size: 13px; color: var(--text-secondary-color, #636E72); display: flex; gap: 14px; }
 
