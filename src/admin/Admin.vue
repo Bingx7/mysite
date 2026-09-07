@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { LEVEL, levelNameMap, levelColorMap, VISIBILITY, visibilityConfig, CONTENT_TYPE, typeLabelMap, CONFIG } from '../config';
 import { supabase } from '../supabase';
-import { getUsers, getContents, updateUser, deleteUser, updateContent, deleteContent, pinContent, addLog, getLogs, getSystemSettings, updateSystemSettings, getStorageUsage } from '../data';
+import { getUsers, getContents, updateUser, updateContent, deleteContent, pinContent, addLog, getLogs, getSystemSettings, updateSystemSettings, getStorageUsage } from '../data';
 import { formatDate, getLevelName, getLevelColor, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getContentTypeLabel } from '../utils';
 
 const props = defineProps({
@@ -50,9 +50,8 @@ async function loadAll() {
 /* ===== 用户管理 ===== */
 const userSearch = ref('');
 const showUserModal = ref(false);
-const userModalMode = ref('add');
 const editingUserId = ref(null);
-const userForm = ref({ email: '', password: '', name: '', level: LEVEL.MEMBER, avatar: '👤' });
+const userForm = ref({ email: '', name: '', level: LEVEL.MEMBER, avatar: '👤' });
 
 const filteredUsers = computed(() => {
     if (!userSearch.value) return users.value;
@@ -63,19 +62,10 @@ const filteredUsers = computed(() => {
     );
 });
 
-function openAddUser() {
-    userModalMode.value = 'add';
-    editingUserId.value = null;
-    userForm.value = { email: '', password: '', name: '', level: LEVEL.MEMBER, avatar: '👤' };
-    showUserModal.value = true;
-}
-
 function openEditUser(user) {
-    userModalMode.value = 'edit';
     editingUserId.value = user.id;
     userForm.value = {
         email: user.username || user.email || '',
-        password: '',
         name: user.name,
         level: user.level,
         avatar: user.avatar
@@ -84,103 +74,28 @@ function openEditUser(user) {
 }
 
 async function handleSaveUser() {
-    const { email, password, name, level, avatar } = userForm.value;
-    if (!email || !name) return;
+    const { name, level, avatar } = userForm.value;
+    if (!name) return;
 
-    if (userModalMode.value === 'add') {
-        if (!password) return;
-        loading.value = true;
-        try {
-            // 保存当前管理员 session
-            const { data: { session: adminSession } } = await supabase.auth.getSession();
-
-            // 通过 signUp 创建用户（数据库触发器自动创建 profile）
-            const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: { data: { name } }
-            });
-            if (signUpError) {
-                if (signUpError.message.includes('already registered')) {
-                    alert('该邮箱已被注册');
-                    return;
-                }
-                throw signUpError;
-            }
-
-            if (signUpData.user) {
-                // 更新新用户的等级和头像
-                await updateUser(signUpData.user.id, { level, avatar });
-            }
-
-            // 恢复管理员 session
-            if (adminSession) {
-                await supabase.auth.setSession({
-                    access_token: adminSession.access_token,
-                    refresh_token: adminSession.refresh_token
-                });
-            }
-
-            await addLog({
-                userId: props.currentUser.id,
-                userName: props.currentUser.name,
-                action: 'create_user',
-                target: email,
-                targetType: 'user',
-                detail: `新建用户「${name}」，等级 ${getLevelName(level)}`
-            });
-            showUserModal.value = false;
-            await loadUsers();
-            emit('refresh');
-        } catch (e) {
-            alert('创建失败: ' + e.message);
-        } finally {
-            loading.value = false;
-        }
-    } else {
-        loading.value = true;
-        try {
-            const updates = { name, email, level, avatar };
-            await updateUser(editingUserId.value, updates);
-            await addLog({
-                userId: props.currentUser.id,
-                userName: props.currentUser.name,
-                action: 'edit_user',
-                target: email,
-                targetType: 'user',
-                detail: `编辑用户「${name}」`
-            });
-            showUserModal.value = false;
-            await loadUsers();
-            emit('refresh');
-        } catch (e) {
-            alert('保存失败: ' + e.message);
-        } finally {
-            loading.value = false;
-        }
-    }
-}
-
-async function handleDeleteUser(user) {
-    if (user.id === props.currentUser.id) {
-        alert('不能删除自己');
-        return;
-    }
-    if (!confirm(`确定删除用户「${user.name}」吗？其所有内容也会被删除。`)) return;
+    loading.value = true;
     try {
-        await deleteUser(user.id);
+        // 登录邮箱/密码属于 Supabase Auth，不能只改 profiles；这里仅维护站内资料和等级。
+        await updateUser(editingUserId.value, { name, level, avatar });
         await addLog({
             userId: props.currentUser.id,
             userName: props.currentUser.name,
-            action: 'delete_user',
-            target: user.username || user.email,
+            action: 'edit_user',
+            target: name,
             targetType: 'user',
-            detail: `删除用户「${user.name}」及其全部内容`
+            detail: `编辑用户「${name}」`
         });
+        showUserModal.value = false;
         await loadUsers();
         emit('refresh');
     } catch (e) {
-        alert('删除失败: ' + e.message);
+        alert('保存失败: ' + e.message);
+    } finally {
+        loading.value = false;
     }
 }
 
@@ -486,14 +401,14 @@ onMounted(() => {
                         <h2 class="admin-section-title">用户管理</h2>
                         <div class="admin-section-actions">
                             <input v-model="userSearch" type="text" class="admin-search" placeholder="搜索用户名或昵称...">
-                            <button class="admin-btn admin-btn-primary" @click="openAddUser">+ 新增用户</button>
+                            <span class="setting-desc">新增或删除登录账号请在 Supabase Authentication 中操作</span>
                         </div>
                     </div>
                     <table class="admin-table">
                         <thead>
                             <tr>
                                 <th>头像</th>
-                                <th>邮箱</th>
+                                <th>账号</th>
                                 <th>昵称</th>
                                 <th>等级</th>
                                 <th>操作</th>
@@ -511,7 +426,6 @@ onMounted(() => {
                                 </td>
                                 <td class="td-actions">
                                     <button class="admin-btn-sm" @click="openEditUser(user)">编辑</button>
-                                    <button class="admin-btn-sm admin-btn-sm-danger" @click="handleDeleteUser(user)" :disabled="user.id === props.currentUser.id">删除</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -734,7 +648,7 @@ onMounted(() => {
         <div v-if="showUserModal" class="admin-modal-overlay" @click.self="showUserModal = false">
             <div class="admin-modal">
                 <div class="admin-modal-header">
-                    <div class="admin-modal-title">{{ userModalMode === 'add' ? '新增用户' : '编辑用户' }}</div>
+                    <div class="admin-modal-title">编辑用户</div>
                     <button class="admin-modal-close" @click="showUserModal = false">✕</button>
                 </div>
                 <div class="admin-modal-body">
@@ -745,12 +659,8 @@ onMounted(() => {
                         </div>
                     </div>
                     <div class="admin-form-group">
-                        <label class="admin-form-label">邮箱</label>
-                        <input v-model="userForm.email" type="email" class="admin-form-input" placeholder="请输入邮箱">
-                    </div>
-                    <div class="admin-form-group">
-                        <label class="admin-form-label">密码{{ userModalMode === 'edit' ? '（留空不修改）' : '' }}</label>
-                        <input v-model="userForm.password" type="password" class="admin-form-input" :placeholder="userModalMode === 'edit' ? '留空则不修改密码' : '请输入密码'">
+                        <label class="admin-form-label">账号（不可在这里修改）</label>
+                        <input v-model="userForm.email" type="text" class="admin-form-input" readonly>
                     </div>
                     <div class="admin-form-group">
                         <label class="admin-form-label">昵称</label>

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { LEVEL, CONTENT_TYPE } from './config';
 import { loadTheme, getTheme, setTheme, resetTheme } from './theme';
 import { useAuth } from './composables/useAuth';
@@ -32,7 +32,7 @@ const {
     currentTab, sysSettings, folderColors,
     isModalOpen, modalMode, formImages, formCaptions,
     formTitle, formBody, formDescription, formVisibility,
-    formStartDate, formEndDate,
+    formStartDate, formEndDate, formType,
     loadContents, loadSystemSettings, switchTab,
     openCreateModal, openEditModal, hasUnsavedContent, closeModal,
     handleFileUpload, removeImage, handleSaveContent,
@@ -103,9 +103,13 @@ async function onDeleteContent(content) {
     }
 }
 
-function onCloseModal() {
+async function onCloseModal() {
     if (hasUnsavedContent() && !confirm('有未保存的内容，确定放弃吗？')) return;
-    closeModal();
+    await closeModal();
+}
+
+async function onFileUpload(event) {
+    await handleFileUpload(event, showToastMessage);
 }
 
 /* ===== 其他 ===== */
@@ -120,14 +124,10 @@ function handleResetTheme() { resetTheme(); showToastMessage('已重置为默认
 onMounted(async () => {
     loadTheme();
     startClock();
+    await loadSystemSettings();
     await initAuth(async () => {
         await loadContents(currentUser.value);
-        await loadSystemSettings();
     });
-});
-
-watch(currentTab, async () => {
-    if (isLoggedIn.value) await loadContents(currentUser.value);
 });
 
 onUnmounted(() => { stopClock(); });
@@ -228,7 +228,7 @@ onUnmounted(() => { stopClock(); });
             <ContentModal
                 :isOpen="isModalOpen"
                 :mode="modalMode"
-                :currentTab="currentTab"
+                :currentTab="formType"
                 :formTitle="formTitle"
                 :formBody="formBody"
                 :formDescription="formDescription"
@@ -245,7 +245,7 @@ onUnmounted(() => { stopClock(); });
                 @update:formVisibility="formVisibility = $event"
                 @update:formStartDate="formStartDate = $event"
                 @update:formEndDate="formEndDate = $event"
-                @fileUpload="handleFileUpload"
+                @fileUpload="onFileUpload"
                 @removeImage="removeImage"
             />
 

@@ -69,7 +69,7 @@ const emit = defineEmits([
                     <input type="file" accept="image/*" multiple @change="$emit('fileUpload', $event)" class="file-input">
                     <div v-if="formImages.length > 0" class="uploaded-images">
                         <div v-for="(url, idx) in formImages" :key="idx" class="uploaded-image">
-                            <img :src="url" :alt="`图片${idx + 1}`">
+                            <img :src="typeof url === 'string' ? url : url.url" :alt="`图片${idx + 1}`">
                             <button class="uploaded-image-remove" @click="$emit('removeImage', idx)">✕</button>
                         </div>
                     </div>

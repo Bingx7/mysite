@@ -6,19 +6,25 @@ import { supabase } from './supabase'
 
 /** 获取所有用户 */
 export async function getUsers() {
-    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: true })
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, name, avatar, level, created_at')
+        .order('created_at', { ascending: true })
+    if (error) throw error
     return data || []
 }
 
 /** 根据 ID 获取用户 */
 export async function getUserById(id) {
-    const { data } = await supabase.from('profiles').select('*').eq('id', id).single()
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
+    if (error) throw error
     return data || null
 }
 
 /** 根据 username 获取用户 */
 export async function getUserByUsername(username) {
-    const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    const { data, error } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    if (error) throw error
     return data || null
 }
 
@@ -56,36 +62,41 @@ export async function deleteUser(id) {
 
 /** 获取所有内容 */
 export async function getContents() {
-    const { data } = await supabase.from('contents').select('*').order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('contents').select('*').order('created_at', { ascending: false })
+    if (error) throw error
     return data || []
 }
 
 /** 根据 ID 获取内容 */
 export async function getContentById(id) {
-    const { data } = await supabase.from('contents').select('*').eq('id', id).single()
+    const { data, error } = await supabase.from('contents').select('*').eq('id', id).single()
+    if (error) throw error
     return data || null
 }
 
 /** 根据类型获取内容 */
 export async function getContentsByType(type) {
-    const { data } = await supabase
+    const { data, error } = await supabase
         .from('contents')
         .select('*')
         .eq('type', type)
         .order('pinned', { ascending: false })
         .order('created_at', { ascending: false })
+    if (error) throw error
     return data || []
 }
 
 /** 根据可见性获取内容 */
 export async function getContentsByVisibility(visibility) {
-    const { data } = await supabase.from('contents').select('*').eq('visibility', visibility)
+    const { data, error } = await supabase.from('contents').select('*').eq('visibility', visibility)
+    if (error) throw error
     return data || []
 }
 
 /** 根据作者获取内容 */
 export async function getContentsByAuthorId(authorId) {
-    const { data } = await supabase.from('contents').select('*').eq('author_id', authorId).order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('contents').select('*').eq('author_id', authorId).order('created_at', { ascending: false })
+    if (error) throw error
     return data || []
 }
 
@@ -109,17 +120,23 @@ export async function addContent(content) {
 
 /** 更新内容 */
 export async function updateContent(id, updates) {
-    const payload = { ...updates }
-    // 字段名映射：App 里用的是 camelCase，数据库是 snake_case
-    if (payload.visibility !== undefined) payload.visibility = payload.visibility
-    if (payload.startDate !== undefined) {
-        payload.start_date = payload.startDate ? new Date(payload.startDate).toISOString() : null
-        delete payload.startDate
+    // 只允许更新 contents 表真实存在且可编辑的字段，避免把 images、captions、authorId 等表单字段传给数据库。
+    const payload = {}
+    for (const field of ['type', 'title', 'body', 'description', 'visibility', 'pinned']) {
+        if (updates[field] !== undefined) payload[field] = updates[field]
     }
-    if (payload.endDate !== undefined) {
-        payload.end_date = payload.endDate ? new Date(payload.endDate).toISOString() : null
-        delete payload.endDate
+    if (updates.startDate !== undefined) {
+        payload.start_date = updates.startDate ? new Date(updates.startDate).toISOString() : null
+    } else if (updates.start_date !== undefined) {
+        payload.start_date = updates.start_date
     }
+    if (updates.endDate !== undefined) {
+        payload.end_date = updates.endDate ? new Date(updates.endDate).toISOString() : null
+    } else if (updates.end_date !== undefined) {
+        payload.end_date = updates.end_date
+    }
+
+    if (Object.keys(payload).length === 0) return null
 
     const { data, error } = await supabase.from('contents').update(payload).eq('id', id).select().single()
     if (error) throw error
@@ -134,7 +151,8 @@ export async function deleteContent(id) {
 
 /** 切换置顶 */
 export async function pinContent(id) {
-    const { data: current } = await supabase.from('contents').select('pinned').eq('id', id).single()
+    const { data: current, error: readError } = await supabase.from('contents').select('pinned').eq('id', id).single()
+    if (readError) throw readError
     const { data, error } = await supabase.from('contents').update({ pinned: !current.pinned }).eq('id', id).select().single()
     if (error) throw error
     return data
@@ -142,7 +160,8 @@ export async function pinContent(id) {
 
 /** 获取置顶内容 */
 export async function getPinnedContents(type) {
-    const { data } = await supabase.from('contents').select('*').eq('type', type).eq('pinned', true)
+    const { data, error } = await supabase.from('contents').select('*').eq('type', type).eq('pinned', true)
+    if (error) throw error
     return data || []
 }
 
@@ -152,18 +171,21 @@ export async function getPinnedContents(type) {
 
 /** 获取所有图片 */
 export async function getImages() {
-    const { data } = await supabase.from('content_images').select('*')
+    const { data, error } = await supabase.from('content_images').select('*')
+    if (error) throw error
     return data || []
 }
 
 /** 根据内容 ID 获取图片 */
 export async function getImagesByContentId(contentId) {
-    const { data } = await supabase.from('content_images').select('*').eq('content_id', contentId).order('sort_order', { ascending: true })
+    const { data, error } = await supabase.from('content_images').select('*').eq('content_id', contentId).order('sort_order', { ascending: true })
+    if (error) throw error
     return data || []
 }
 
 /** 新增图片 */
 export async function addImages(images) {
+    if (images.length === 0) return
     const { error } = await supabase.from('content_images').insert(images.map((img, idx) => ({
         content_id: img.contentId,
         url: img.url,
@@ -198,7 +220,8 @@ export async function addLog(logEntry) {
 
 /** 获取操作日志（最新在前） */
 export async function getLogs() {
-    const { data } = await supabase.from('operation_logs').select('*').order('created_at', { ascending: false }).limit(500)
+    const { data, error } = await supabase.from('operation_logs').select('*').order('created_at', { ascending: false }).limit(500)
+    if (error) throw error
     return data || []
 }
 
@@ -208,18 +231,18 @@ export async function getLogs() {
 
 /** 获取系统设置（表不存在时降级为默认值） */
 export async function getSystemSettings() {
-    try {
-        const { data } = await supabase.from('system_settings').select('*').eq('id', 1).maybeSingle()
-        return data || { registration_open: true, daily_post_limit: 10, max_image_size: 10 }
-    } catch (e) {
-        console.warn('无法加载系统设置，使用默认值:', e.message)
-        return { registration_open: true, daily_post_limit: 10, max_image_size: 10 }
+    const { data, error } = await supabase.from('system_settings').select('*').eq('id', 1).maybeSingle()
+    if (error) {
+        console.warn('无法加载系统设置，默认关闭注册:', error.message)
+        return { registration_open: false, daily_post_limit: 10, max_image_size: 10 }
     }
+    return data || { registration_open: false, daily_post_limit: 10, max_image_size: 10 }
 }
 
 /** 根据用户名查找完整 profile（用于用户名登录） */
 export async function getProfileByUsername(username) {
-    const { data } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    const { data, error } = await supabase.from('profiles').select('*').eq('username', username).maybeSingle()
+    if (error) throw error
     return data || null
 }
 

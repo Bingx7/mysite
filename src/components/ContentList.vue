@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { CONTENT_TYPE } from '../config'
 import { formatDate, formatDateRange, truncateText, getVisibilityLabel, getVisibilityIcon, getVisibilityColor } from '../utils'
 
@@ -19,6 +19,12 @@ function getAuthorName(authorId) {
 
 function getAuthorAvatar(authorId) {
     return props.authorsMap?.[authorId]?.avatar || '👤'
+}
+
+function getFolderColor(contentId) {
+    if (!props.folderColors?.length) return '#4ECDC4'
+    const hash = String(contentId).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+    return props.folderColors[hash % props.folderColors.length]
 }
 
 const searchQuery = ref('')
@@ -46,9 +52,10 @@ function goPage(p) {
     if (p >= 1 && p <= totalPages.value) currentPage.value = p
 }
 
-// 搜索时重置页码
-import { watch } from 'vue'
-watch(searchQuery, () => { currentPage.value = 1 })
+watch([searchQuery, () => props.currentTab], () => { currentPage.value = 1 })
+watch(totalPages, pages => {
+    if (currentPage.value > pages) currentPage.value = pages
+})
 </script>
 
 <template>
@@ -103,8 +110,8 @@ watch(searchQuery, () => { currentPage.value = 1 })
         <div class="album-grid">
             <div v-for="content in pagedContents" :key="content.id" class="album-card" @click="$emit('select', content)">
                 <div class="album-visual">
-                    <div :class="['album-folder']" :style="{ backgroundColor: folderColors[0] }">
-                        <div class="folder-tab" :style="{ backgroundColor: folderColors[0] }"></div>
+                    <div :class="['album-folder']" :style="{ backgroundColor: getFolderColor(content.id) }">
+                        <div class="folder-tab" :style="{ backgroundColor: getFolderColor(content.id) }"></div>
                         <div class="folder-content">
                             <div v-if="(imagesMap[content.id] || []).length > 0"
                                 v-for="(img, idx) in (imagesMap[content.id] || []).slice(0, 3)" :key="img.id"
