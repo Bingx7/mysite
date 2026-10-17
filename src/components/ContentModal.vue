@@ -13,25 +13,30 @@ const props = defineProps({
     formStartDate: String,
     formEndDate: String,
     formImages: Array,
-    formCaptions: Array
+    formCaptions: Array,
+    busy: Boolean,
+    saving: Boolean,
+    uploading: Boolean,
+    uploadProgress: Object
 })
 
 const emit = defineEmits([
     'close', 'save',
     'update:formTitle', 'update:formBody', 'update:formDescription',
     'update:formVisibility', 'update:formStartDate', 'update:formEndDate',
-    'fileUpload', 'removeImage'
+    'fileUpload', 'removeImage', 'moveImage', 'setCover'
 ])
 </script>
 
 <template>
-    <div v-if="isOpen" class="modal-overlay open" @click="$emit('close')">
-        <div class="modal" @click.stop>
+    <div v-if="isOpen" class="modal-overlay open" @click="!busy && $emit('close')">
+        <div class="modal" role="dialog" aria-modal="true" :aria-label="`${mode === 'edit' ? '编辑' : '发布'}${getContentTypeLabel(currentTab)}`" @click.stop>
             <div class="modal-header">
                 <div class="modal-title">{{ mode === 'edit' ? '编辑' : '发布' }}{{ getContentTypeLabel(currentTab) }}</div>
-                <button class="modal-close" @click="$emit('close')">✕</button>
+                <button aria-label="关闭编辑窗口" class="modal-close" :disabled="busy" @click="$emit('close')">✕</button>
             </div>
             <div class="modal-body">
+                <fieldset :disabled="busy" class="form-fields" :aria-busy="busy">
                 <div class="form-group">
                     <label class="form-label">标题</label>
                     <input :value="formTitle" @input="$emit('update:formTitle', $event.target.value)" type="text" class="form-input" placeholder="请输入标题">
@@ -65,19 +70,34 @@ const emit = defineEmits([
                     </div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">图片上传</label>
-                    <input type="file" accept="image/*" multiple @change="$emit('fileUpload', $event)" class="file-input">
+                    <label class="form-label">图片上传（{{ formImages.length }} / 9）</label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple @change="$emit('fileUpload', $event)" class="file-input">
+                    <p class="upload-hint">照片自动压缩，生成小图以加快浏览；使用前移、后移调整顺序。</p>
                     <div v-if="formImages.length > 0" class="uploaded-images">
-                        <div v-for="(url, idx) in formImages" :key="idx" class="uploaded-image">
-                            <img :src="typeof url === 'string' ? url : url.url" :alt="`图片${idx + 1}`">
-                            <button class="uploaded-image-remove" @click="$emit('removeImage', idx)">✕</button>
+                        <div v-for="(image, idx) in formImages" :key="image.path || image.url || idx" class="uploaded-image">
+                            <img :src="image.thumbnail_url || image.url || image" :alt="`图片${idx + 1}`" decoding="async">
+                            <button type="button" class="uploaded-image-remove" :aria-label="`删除图片 ${idx + 1}`" @click="$emit('removeImage', idx)">✕</button>
+                            <span class="image-number">{{ idx + 1 }}</span>
+                            <div class="image-controls">
+                                <button type="button" :disabled="busy || idx === 0" @click="$emit('moveImage', idx, -1)">前移</button>
+                                <button type="button" :disabled="busy || idx === formImages.length - 1" @click="$emit('moveImage', idx, 1)">后移</button>
+                                <button v-if="currentTab === CONTENT_TYPE.ALBUM" type="button" :aria-pressed="image.is_cover || (!formImages.some(item => item.is_cover) && idx === 0)" @click="$emit('setCover', idx)">
+                                    {{ image.is_cover || (!formImages.some(item => item.is_cover) && idx === 0) ? '✓ 封面' : '设为封面' }}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
+                </fieldset>
+                <div v-if="uploading" class="upload-status" role="status" aria-live="polite">
+                    <p>{{ uploadProgress.stage }} · 已完成 {{ uploadProgress.completed }} / {{ uploadProgress.total }} 张</p>
+                    <progress :value="uploadProgress.completed" :max="uploadProgress.total || 1"></progress>
+                </div>
+                <p v-if="saving" class="upload-status" role="status">正在保存，请稍候…</p>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-secondary" @click="$emit('close')">取消</button>
-                <button class="btn btn-primary" @click="$emit('save')">{{ mode === 'edit' ? '保存' : '发布' }}</button>
+                <button class="btn btn-secondary" :disabled="busy" @click="$emit('close')">取消</button>
+                <button class="btn btn-primary" :disabled="busy" @click="$emit('save')">{{ saving ? '保存中…' : uploading ? '上传中…' : mode === 'edit' ? '保存' : '发布' }}</button>
             </div>
         </div>
     </div>
@@ -118,7 +138,7 @@ const emit = defineEmits([
 
 
 .date-range { display: flex; align-items: center; gap: 14px; }
-.date-range input { flex: 1; }
+.date-range input { flex: 1; min-width: 0; width: 0; }
 
 .visibility-options { display: flex; flex-wrap: wrap; gap: 14px; }
 .visibility-option { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; background-color: rgba(0, 0, 0, 0.03); cursor: pointer; font-size: 14px; }
@@ -127,8 +147,23 @@ const emit = defineEmits([
 
 .file-input { width: 100%; padding: 14px; border: 1px dashed var(--border-color, #E8E7E4); border-radius: 10px; cursor: pointer; background-color: rgba(0, 0, 0, 0.02); }
 
-.uploaded-images { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
-.uploaded-image { position: relative; width: 100px; height: 100px; border-radius: 10px; overflow: hidden; }
-.uploaded-image img { width: 100%; height: 100%; object-fit: cover; }
+.uploaded-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 10px; margin-top: 14px; }
+.uploaded-image { position: relative; min-width: 0; border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.04); }
+.uploaded-image img { width: 100%; height: 110px; object-fit: cover; }
+.form-fields { padding: 0; margin: 0; border: 0; min-width: 0; }
+.upload-hint, .upload-status { font-size: 13px; line-height: 1.6; color: var(--text-secondary-color); }
+.upload-status progress { width: 100%; accent-color: var(--brand-color); }
+.image-controls { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; }
+.image-controls button { flex: 1; padding: 8px 4px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer; }
+.image-controls button[aria-pressed="true"] { background: var(--brand-color); color: white; }
+.image-controls button[aria-pressed] { flex-basis: 100%; }
+.image-number { position: absolute; top: 6px; left: 6px; background: #0009; color: white; padding: 2px 6px; border-radius: 4px; }
+button:disabled { opacity: 0.5; cursor: wait; }
+@media (max-width: 480px) {
+    .date-range { flex-direction: column; align-items: stretch; gap: 8px; }
+    .date-range input { width: 100%; flex: auto; }
+    .date-range > span { text-align: center; }
+    .modal-body { padding: 20px; }
+}
 .uploaded-image-remove { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; background-color: rgba(0, 0, 0, 0.6); color: white; border: none; font-size: 14px; cursor: pointer; }
 </style>

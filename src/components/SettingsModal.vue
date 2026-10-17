@@ -17,21 +17,21 @@ const fontSizeOptions = computed(() => getFontSizeOptions())
 
 <template>
     <div v-if="isOpen" class="modal-overlay open" @click="$emit('close')">
-        <div class="modal settings-modal" @click.stop>
+        <div class="modal settings-modal" role="dialog" aria-modal="true" aria-label="外观设置" @click.stop>
             <div class="modal-header">
-                <div class="modal-title">⚙️ 外观设置</div>
-                <button class="modal-close" @click="$emit('close')">✕</button>
+                <div class="modal-title">外观设置</div>
+                <button aria-label="关闭外观设置" class="modal-close" @click="$emit('close')">✕</button>
             </div>
             <div class="modal-body">
                 <div class="settings-section">
-                    <div class="settings-title">品牌色</div>
+                    <div class="settings-title">强调色</div>
                     <div class="brand-colors">
-                        <div v-for="color in brandColors" :key="color"
+                        <button type="button" :aria-label="`选择强调色 ${color}`" :aria-pressed="theme.brandColor === color" v-for="color in brandColors" :key="color"
                             :class="['brand-color', { active: theme.brandColor === color }]"
                             :style="{ backgroundColor: color }"
                             @click="$emit('change', 'brandColor', color)">
-                        </div>
-                        <input type="color" :value="theme.brandColor"
+                        </button>
+                        <input aria-label="自定义强调色" type="color" :value="theme.brandColor"
                             @input="$emit('change', 'brandColor', $event.target.value)" class="color-picker">
                     </div>
                 </div>
@@ -43,22 +43,6 @@ const fontSizeOptions = computed(() => getFontSizeOptions())
                             @click="$emit('change', 'brightness', option.value)">
                             {{ option.label }}
                         </button>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <div class="settings-title">毛玻璃强度</div>
-                    <div class="glass-slider-container">
-                        <input type="range" min="0" max="100" :value="theme.glassStrength"
-                            @input="$emit('change', 'glassStrength', parseInt($event.target.value))" class="glass-slider">
-                        <div class="glass-value">{{ theme.glassStrength }}%</div>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <div class="settings-title">背景模糊</div>
-                    <div class="glass-slider-container">
-                        <input type="range" min="0" max="50" :value="theme.backgroundBlur"
-                            @input="$emit('change', 'backgroundBlur', parseInt($event.target.value))" class="glass-slider">
-                        <div class="glass-value">{{ theme.backgroundBlur }}px</div>
                     </div>
                 </div>
                 <div class="settings-section">

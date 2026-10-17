@@ -4,6 +4,7 @@
   "description": "私密内容站 - 一个私密记录工具，支持发布日记、文章和照片集",
   "type": "module",
   "scripts": {
+    "test": "node --test tests/*.test.js",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

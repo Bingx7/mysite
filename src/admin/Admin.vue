@@ -2,7 +2,9 @@
 import { ref, computed, onMounted } from 'vue';
 import { LEVEL, levelNameMap, levelColorMap, VISIBILITY, visibilityConfig, CONTENT_TYPE, typeLabelMap, CONFIG } from '../config';
 import { supabase } from '../supabase';
-import { getUsers, getContents, updateUser, updateContent, deleteContent, pinContent, addLog, getLogs, getSystemSettings, updateSystemSettings, getStorageUsage } from '../data';
+import BackupPanel from './BackupPanel.vue';
+import { deleteContentApi } from '../api';
+import { getUsers, getContents, updateUser, updateContent, pinContent, addLog, getLogs, getSystemSettings, updateSystemSettings, getStorageUsage } from '../data';
 import { formatDate, getLevelName, getLevelColor, getVisibilityLabel, getVisibilityIcon, getVisibilityColor, getContentTypeLabel } from '../utils';
 
 const props = defineProps({
@@ -12,6 +14,16 @@ const props = defineProps({
 const emit = defineEmits(['close', 'refresh']);
 
 const activeTab = ref('users');
+const backupBusy = ref(false);
+const selectedBackupContents = computed(() => exportableContents.value.filter(c => checkedExportIds.value.has(c.id)));
+async function onRestored() {
+    try {
+        await Promise.all([loadContents(), loadSettings()]);
+        emit('refresh');
+    } catch (error) {
+        alert('恢复结果已显示，但列表刷新失败，请稍后重新打开后台：' + error.message);
+    }
+}
 
 /* ===== 异步数据 ===== */
 const users = ref([]);
@@ -182,7 +194,7 @@ async function handleSaveContent() {
 async function handleDeleteContent(content) {
     if (!confirm(`确定删除「${content.title}」吗？`)) return;
     try {
-        await deleteContent(content.id);
+        await deleteContentApi(content.id);
         await addLog({
             userId: props.currentUser.id,
             userName: props.currentUser.name,
@@ -368,12 +380,12 @@ onMounted(() => {
                 <div class="admin-logo">🔧 后台管理</div>
                 <div class="admin-user-tag">{{ props.currentUser.name }} · 高级管理员</div>
             </div>
-            <button class="admin-close-btn" @click="$emit('close')">← 返回前台</button>
+            <button class="admin-close-btn" :disabled="backupBusy" @click="$emit('close')">← 返回前台</button>
         </div>
 
         <div class="admin-body">
             <!-- 侧边导航 -->
-            <div class="admin-sidebar">
+            <div class="admin-sidebar" :inert="backupBusy || undefined">
                 <div :class="['admin-nav-item', { active: activeTab === 'users' }]" @click="activeTab = 'users'">
                     <span class="admin-nav-icon">👥</span> 用户管理
                 </div>
@@ -585,7 +597,7 @@ onMounted(() => {
                 <!-- ===== 数据备份 ===== -->
                 <div v-if="activeTab === 'export' && !isLoading" class="admin-section">
                     <h2 class="admin-section-title">数据备份</h2>
-                    <p class="admin-section-desc">选择需要导出的内容，生成 Markdown 文件下载到本地</p>
+                    <p class="admin-section-desc">选择内容后，可导出 Markdown 文本或包含实际图片的完整备份。</p>
 
                     <!-- 筛选栏 -->
                     <div class="export-filters">
@@ -613,12 +625,14 @@ onMounted(() => {
                             <span>全选</span>
                         </label>
                         <span class="export-count">已选 {{ exportCheckedCount }} / {{ exportableContents.length }} 条</span>
-                        <button class="admin-btn admin-btn-primary" @click="exportSelectedMarkdown" :disabled="exportCheckedCount === 0">
-                            导出选中内容
+                        <button class="admin-btn admin-btn-primary" @click="exportSelectedMarkdown" :disabled="exportCheckedCount === 0 || backupBusy">
+                            导出 Markdown 文本
                         </button>
                     </div>
 
                     <!-- 内容列表 -->
+                    <BackupPanel :selected="selectedBackupContents" :contents="contents" :users="users"
+                        @busy="backupBusy = $event" @restored="onRestored" />
                     <div class="export-list">
                         <div v-for="c in exportableContents" :key="c.id" class="export-item">
                             <label class="export-item-check">

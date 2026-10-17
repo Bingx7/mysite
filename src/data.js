@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { contentFilter } from './contentQuery'
 
 /* ==============================
    用户 (profiles)
@@ -84,6 +85,19 @@ export async function getContentsByType(type) {
         .order('created_at', { ascending: false })
     if (error) throw error
     return data || []
+}
+
+/** 前台分页读取：搜索与权限过滤均在分页前执行，不影响后台全量查询。 */
+export async function getContentsPage({ type, page = 1, pageSize = 8, search = '', user = null, signal }) {
+    let query = supabase.from('contents').select('*', { count: 'exact' })
+        .or(contentFilter(user, search))
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+    if (type !== 'all') query = query.eq('type', type)
+    query = query.range((page - 1) * pageSize, page * pageSize - 1)
+    if (signal) query = query.abortSignal(signal)
+    const { data, count, error } = await query
+    if (error) throw error
+    return { rows: data || [], total: count ?? data?.length ?? 0 }
 }
 
 /** 根据可见性获取内容 */

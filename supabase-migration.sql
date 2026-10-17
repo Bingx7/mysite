@@ -1,4 +1,4 @@
--- 在 Supabase SQL Editor 中执行全部内容
+-- 在 Supabase SQL Editor 中执行全部内容，再执行 supabase-media-features.sql 启用图片与备份功能。
 -- 1. 用户扩展资料表
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,

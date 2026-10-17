@@ -1,104 +1,52 @@
-const DEFAULT_THEME = {
-    brandColor: '#4A5C6B',
-    brightness: 'light',
-    glassStrength: 85,
-    backgroundBlur: 0,
-    cardStyle: 'glass',
-    fontSize: 'medium'
-};
+import { reactive } from 'vue'
 
-const BRAND_COLORS = [
-    '#2C3E50', '#5C6B73', '#3D4F4A', '#8B7E74',
-    '#6B4C4C', '#4A5D6B', '#000000'
-];
-
-let currentTheme = { ...DEFAULT_THEME };
+const DEFAULT_THEME = { brandColor: '#53616B', brightness: 'light', cardStyle: 'border', fontSize: 'medium' }
+const BRAND_COLORS = ['#53616B', '#202124', '#5C6B73', '#3D4F4A', '#8B7E74', '#6B4C4C', '#000000']
+const currentTheme = reactive({ ...DEFAULT_THEME })
+const palettes = {
+    light: { bg: '#F8F7F4', entryBg: '#F7F5F1', entryCool: '#DFE7ED', entryWarm: '#EEE2D3', surface: '#FFFFFF', muted: '#F0F1F2', text: '#202124', secondary: '#6D7278', border: '#E3E5E7', danger: '#B3443E' },
+    neutral: { bg: '#F0EFEC', entryBg: '#EFEDE8', entryCool: '#D8E0E5', entryWarm: '#E7DACB', surface: '#FAFAFA', muted: '#E7E9EB', text: '#25282B', secondary: '#62686E', border: '#D9DDE0', danger: '#B3443E' },
+    dark: { bg: '#181A1C', entryBg: '#181A1C', entryCool: '#26323C', entryWarm: '#302A25', surface: '#202326', muted: '#2B2F33', text: '#ECEEF0', secondary: '#A4ABB2', border: '#373C42', danger: '#F08D86' }
+}
 
 export function loadTheme() {
-    const stored = localStorage.getItem('theme');
-    if (stored) {
-        try {
-            currentTheme = { ...DEFAULT_THEME, ...JSON.parse(stored) };
-        } catch {
-            currentTheme = { ...DEFAULT_THEME };
-        }
-    }
-    applyTheme();
+    let stored = {}
+    try { stored = JSON.parse(localStorage.getItem('theme') || '{}') || {} } catch { /* 使用默认外观 */ }
+    Object.assign(currentTheme, DEFAULT_THEME)
+    for (const key of Object.keys(DEFAULT_THEME)) if (typeof stored[key] === 'string') currentTheme[key] = stored[key]
+    if (currentTheme.cardStyle === 'glass') currentTheme.cardStyle = 'flat'
+    applyTheme()
 }
-
-export function saveTheme() {
-    localStorage.setItem('theme', JSON.stringify(currentTheme));
-}
-
+export function saveTheme() { localStorage.setItem('theme', JSON.stringify(currentTheme)) }
 export function applyTheme() {
-    const root = document.documentElement;
-    
-    root.style.setProperty('--brand-color', currentTheme.brandColor);
-    
-    const brightnessConfig = {
-        light: { bg: '#F5F1E8', card: 'rgba(253,251,247,0.88)', text: '#3A2E24', secondary: '#5A4E3C', border: '#E8E4DA' },
-        neutral: { bg: '#E8E8E8', card: 'rgba(255,255,255,0.7)', text: '#333333', secondary: '#555555', border: '#D0D0D0' },
-        dark: { bg: '#1A1A1A', card: 'rgba(40,40,40,0.85)', text: '#E0E0E0', secondary: '#888888', border: '#333333' }
-    };
-    
-    const config = brightnessConfig[currentTheme.brightness] || brightnessConfig.light;
-    root.style.setProperty('--bg-color', config.bg);
-    root.style.setProperty('--card-bg', config.card);
-    root.style.setProperty('--text-color', config.text);
-    root.style.setProperty('--text-secondary-color', config.secondary);
-    root.style.setProperty('--border-color', config.border);
-    
-    root.style.setProperty('--glass-opacity', currentTheme.glassStrength / 100);
-    root.style.setProperty('--background-blur', currentTheme.backgroundBlur + 'px');
-    
-    const fontSizeConfig = {
-        small: 13,
-        medium: 14,
-        large: 16
-    };
-    root.style.setProperty('--font-size', fontSizeConfig[currentTheme.fontSize] + 'px');
+    const root = document.documentElement
+    const palette = palettes[currentTheme.brightness] || palettes.light
+    const brand = /^#[\da-f]{6}$/i.test(currentTheme.brandColor) ? currentTheme.brandColor : DEFAULT_THEME.brandColor
+    const rgb = brand.slice(1).match(/.{2}/g).map(value => parseInt(value, 16))
+    const contrastText = rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 > 160 ? '#202124' : '#FFFFFF'
+    const variables = {
+        '--brand-color': brand,
+        '--bg': palette.bg, '--bg-color': palette.bg,
+        '--entry-bg': palette.entryBg, '--entry-cool': palette.entryCool, '--entry-warm': palette.entryWarm,
+        '--surface': palette.surface, '--bg-card': palette.surface, '--card-bg': palette.surface,
+        '--surface-muted': palette.muted,
+        '--text': palette.text, '--text-color': palette.text,
+        '--text-secondary': palette.secondary, '--text-secondary-color': palette.secondary,
+        '--border': palette.border, '--border-color': palette.border,
+        '--danger': palette.danger,
+        '--btn-primary-bg': brand, '--btn-primary-text': contrastText,
+        '--btn-secondary-bg': palette.muted, '--btn-secondary-text': palette.text,
+        '--btn-danger-bg': palette.danger, '--btn-danger-text': currentTheme.brightness === 'dark' ? '#181A1C' : '#FFFFFF',
+        '--font-size': ({ small: 13, medium: 14, large: 16 }[currentTheme.fontSize] || 14) + 'px'
+    }
+    for (const [key, value] of Object.entries(variables)) root.style.setProperty(key, value)
+    root.style.colorScheme = currentTheme.brightness === 'dark' ? 'dark' : 'light'
+    root.dataset.cardStyle = currentTheme.cardStyle === 'glass' ? 'flat' : currentTheme.cardStyle
 }
-
-export function getTheme() {
-    return currentTheme;
-}
-
-export function setTheme(updates) {
-    currentTheme = { ...currentTheme, ...updates };
-    applyTheme();
-    saveTheme();
-}
-
-export function resetTheme() {
-    currentTheme = { ...DEFAULT_THEME };
-    applyTheme();
-    saveTheme();
-}
-
-export function getBrandColors() {
-    return BRAND_COLORS;
-}
-
-export function getBrightnessOptions() {
-    return [
-        { value: 'light', label: '亮色' },
-        { value: 'neutral', label: '中性' },
-        { value: 'dark', label: '暗色' }
-    ];
-}
-
-export function getCardStyleOptions() {
-    return [
-        { value: 'shadow', label: '阴影' },
-        { value: 'border', label: '边框' },
-        { value: 'glass', label: '透明' }
-    ];
-}
-
-export function getFontSizeOptions() {
-    return [
-        { value: 'small', label: '小' },
-        { value: 'medium', label: '中' },
-        { value: 'large', label: '大' }
-    ];
-}
+export function getTheme() { return currentTheme }
+export function setTheme(updates) { Object.assign(currentTheme, updates); applyTheme(); saveTheme() }
+export function resetTheme() { Object.assign(currentTheme, DEFAULT_THEME); applyTheme(); saveTheme() }
+export function getBrandColors() { return BRAND_COLORS }
+export function getBrightnessOptions() { return [{ value: 'light', label: '亮色' }, { value: 'neutral', label: '中性' }, { value: 'dark', label: '暗色' }] }
+export function getCardStyleOptions() { return [{ value: 'flat', label: '平面' }, { value: 'border', label: '细边框' }, { value: 'shadow', label: '轻阴影' }] }
+export function getFontSizeOptions() { return [{ value: 'small', label: '小' }, { value: 'medium', label: '中' }, { value: 'large', label: '大' }] }

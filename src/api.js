@@ -1,193 +1,135 @@
 import { supabase } from './supabase'
-import {
-    addContent,
-    updateContent,
-    deleteContent,
-    addImages,
-    deleteImagesByContentId,
-    getContentsByType,
-    getImagesByContentId as getImageRowsByContentId
-} from './data'
-import { VISIBILITY } from './config'
+import { deleteContent, getContentsByType, getImagesByContentId as getImageRows } from './data'
+import { prepareImage, extensionFor } from './media'
 
 export { getContentsByType }
+const BUCKET = 'images'
 
-const IMAGE_BUCKET = 'images'
-const SIGNED_URL_TTL_SECONDS = 60 * 60
-
-function getStoragePath(value) {
+export function getStoragePath(value) {
     if (!value) return null
     if (!/^https?:\/\//i.test(value)) return value
-
-    for (const marker of [
-        `/storage/v1/object/public/${IMAGE_BUCKET}/`,
-        `/storage/v1/object/sign/${IMAGE_BUCKET}/`
-    ]) {
-        const markerIndex = value.indexOf(marker)
-        if (markerIndex !== -1) {
-            const encodedPath = value.slice(markerIndex + marker.length).split('?')[0]
-            try { return decodeURIComponent(encodedPath) } catch { return encodedPath }
+    for (const marker of ['/storage/v1/object/public/images/', '/storage/v1/object/sign/images/']) {
+        const index = value.indexOf(marker)
+        if (index !== -1) {
+            const path = value.slice(index + marker.length).split('?')[0]
+            try { return decodeURIComponent(path) } catch { return path }
         }
     }
-
-    // 外部图片链接不属于 Supabase Storage，保持原样。
     return null
 }
 
-async function signImageRows(rows) {
-    const storagePaths = [...new Set(rows.map(row => getStoragePath(row.url)).filter(Boolean))]
-    if (storagePaths.length === 0) {
-        return rows.map(row => ({ ...row, storage_path: null }))
+async function signRows(rows) {
+    const paths = [...new Set(rows.flatMap(row => [row.url, row.thumbnail_url]).map(getStoragePath).filter(Boolean))]
+    let signed = new Map()
+    if (paths.length) {
+        const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 3600)
+        if (error) throw error
+        signed = new Map((data || []).map(item => [item.path, item.signedUrl]))
     }
-
-    const { data, error } = await supabase.storage
-        .from(IMAGE_BUCKET)
-        .createSignedUrls(storagePaths, SIGNED_URL_TTL_SECONDS)
-
-    if (error) throw error
-
-    const signedUrlMap = new Map((data || []).map(item => [item.path, item.signedUrl]))
     return rows.map(row => {
-        const storagePath = getStoragePath(row.url)
-        if (!storagePath) return { ...row, storage_path: null }
-        const signedUrl = signedUrlMap.get(storagePath)
-        if (!signedUrl) throw new Error('无法生成图片访问链接')
-        return { ...row, storage_path: storagePath, url: signedUrl }
+        const path = getStoragePath(row.url)
+        const thumbPath = getStoragePath(row.thumbnail_url)
+        const url = path ? signed.get(path) : row.url
+        return {
+            ...row, storage_path: path, thumbnail_path: thumbPath,
+            // 单张损坏的图片不影响整篇内容读取。
+            url: url || '', thumbnail_url: (thumbPath ? signed.get(thumbPath) : row.thumbnail_url) || url || ''
+        }
     })
 }
 
-export async function getImagesByContentId(contentId) {
-    const rows = await getImageRowsByContentId(contentId)
-    return signImageRows(rows)
+export async function getImagesByContentId(id) { return signRows(await getImageRows(id)) }
+
+/** 一页最多 12 条内容：图片元数据一次查询，访问链接一次批量生成。 */
+export async function getImagesByContentIds(ids) {
+    const uniqueIds = [...new Set(ids)]
+    const map = Object.fromEntries(uniqueIds.map(id => [id, []]))
+    if (!uniqueIds.length) return map
+    const { data, error } = await supabase.from('content_images').select('*')
+        .in('content_id', uniqueIds).order('sort_order', { ascending: true }).order('id', { ascending: true })
+    if (error) throw error
+    for (const image of await signRows(data || [])) {
+        if (map[image.content_id]) map[image.content_id].push(image)
+    }
+    return map
 }
 
 export async function deleteImageObjects(images) {
-    const paths = [...new Set(images.map(image =>
-        getStoragePath(typeof image === 'string' ? image : image?.path || image?.storage_path || image?.url)
-    ).filter(Boolean))]
-    if (paths.length === 0) return
-
-    const { error } = await supabase.storage.from(IMAGE_BUCKET).remove(paths)
+    const paths = [...new Set(images.flatMap(image => typeof image === 'string' ? [image] : [
+        image?.path || image?.storage_path || image?.url,
+        image?.thumbnail_path || image?.thumbnail_url
+    ]).map(getStoragePath).filter(Boolean))]
+    if (!paths.length) return
+    const { error } = await supabase.storage.from(BUCKET).remove(paths)
     if (error) throw error
 }
 
-/**
- * 上传图片到 Supabase Storage
- * @param {FileList|File[]} files
- * @returns {Promise<Array<{path: string, url: string, isNew: boolean}>>}
- */
-export async function uploadImages(files) {
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError) throw userError
+export async function uploadImages(files, onProgress = () => {}, options = {}) {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) throw error
     if (!user) throw new Error('请先登录后再上传图片')
-
-    const uploadedPaths = []
+    const uploaded = []
+    const rows = []
     try {
-        for (const file of files) {
-            const originalExtension = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-            const extension = /^[a-z0-9]{1,8}$/.test(originalExtension) ? originalExtension : 'jpg'
-            const randomId = globalThis.crypto?.randomUUID?.()
-                || `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-            const storagePath = `${user.id}/${randomId}.${extension}`
-            const { data, error } = await supabase.storage
-                .from(IMAGE_BUCKET)
-                .upload(storagePath, file, { upsert: false, contentType: file.type })
-
-            if (error) throw error
-            uploadedPaths.push(data.path)
+        for (let index = 0; index < files.length; index++) {
+            onProgress({ completed: index, total: files.length, stage: '正在处理图片' })
+            const { main, thumbnail } = await prepareImage(files[index], options)
+            const id = crypto.randomUUID()
+            const path = `${user.id}/${id}.${extensionFor(main.type)}`
+            const thumbnailPath = `${user.id}/${id}_thumb.${extensionFor(thumbnail.type)}`
+            onProgress({ completed: index, total: files.length, stage: '正在上传图片和缩略图' })
+            for (const [name, blob] of [[path, main], [thumbnailPath, thumbnail]]) {
+                const { error: uploadError } = await supabase.storage.from(BUCKET).upload(name, blob, { upsert: false, contentType: blob.type })
+                if (uploadError) throw uploadError
+                uploaded.push(name)
+            }
+            rows.push({ url: path, thumbnail_url: thumbnailPath })
+            onProgress({ completed: index + 1, total: files.length, stage: '已上传' })
         }
-
-        const signedRows = await signImageRows(uploadedPaths.map((path, index) => ({ id: index, url: path })))
-        return signedRows.map(row => ({ path: row.storage_path, url: row.url, isNew: true }))
+        return (await signRows(rows)).map(row => ({
+            path: row.storage_path, url: row.url, thumbnail_path: row.thumbnail_path,
+            thumbnail_url: row.thumbnail_url, isNew: true, is_cover: false
+        }))
     } catch (error) {
-        if (uploadedPaths.length > 0) {
-            await supabase.storage.from(IMAGE_BUCKET).remove(uploadedPaths)
-        }
+        await deleteImageObjects(uploaded).catch(() => {})
         throw error
     }
 }
 
-function getStoredImageValue(image) {
-    if (typeof image === 'string') return getStoragePath(image) || image
-    return image?.path || image?.storage_path || getStoragePath(image?.url) || image?.url
-}
-
-function toImageRows(contentId, images, captions) {
-    return images.map((image, idx) => ({
-        contentId,
-        url: getStoredImageValue(image),
-        caption: captions?.[idx] || ''
+export function toImageRows(images, captions = []) {
+    return images.map((image, index) => ({
+        url: typeof image === 'string' ? getStoragePath(image) || image : image.path || image.storage_path || getStoragePath(image.url) || image.url,
+        thumbnail_url: image.thumbnail_path || getStoragePath(image.thumbnail_url) || image.thumbnail_url || null,
+        caption: captions[index] ?? image.caption ?? '',
+        is_cover: Boolean(image.is_cover)
     }))
 }
 
-/**
- * 创建内容 + 关联图片
- */
-export async function createContent(data) {
-    let content = null
-    try {
-        content = await addContent({
-            authorId: data.authorId,
-            type: data.type,
-            title: data.title,
-            body: data.body || '',
-            description: data.description || '',
-            visibility: data.visibility || VISIBILITY.PRIVATE,
-            startDate: data.startDate || null,
-            endDate: data.endDate || null
-        })
-
-        if (data.images?.length > 0) {
-            await addImages(toImageRows(content.id, data.images, data.captions))
-        }
-
-        return content
-    } catch (error) {
-        if (content) await deleteContent(content.id).catch(() => {})
-        await deleteImageObjects(data.images || []).catch(() => {})
-        throw error
-    }
-}
-
-/**
- * 更新内容 + 替换图片
- */
-export async function updateContentApi(id, data) {
-    const { images, captions, authorId, ...contentFields } = data
-    void authorId
-    await updateContent(id, contentFields)
-
-    if (images) {
-        const previousImages = await getImageRowsByContentId(id)
-        await deleteImagesByContentId(id)
-        try {
-            if (images.length > 0) await addImages(toImageRows(id, images, captions))
-        } catch (error) {
-            if (previousImages.length > 0) {
-                await addImages(previousImages.map(image => ({
-                    contentId: id,
-                    url: image.url,
-                    caption: image.caption
-                }))).catch(() => {})
-            }
-            throw error
-        }
-
-        const retainedPaths = new Set(images.map(getStoredImageValue))
-        const removedImages = previousImages.filter(image => !retainedPaths.has(getStoredImageValue(image.url)))
-        await deleteImageObjects(removedImages).catch(error => {
-            console.warn('旧图片文件清理失败:', error.message)
-        })
-    }
-}
-
-/**
- * 删除内容
- */
-export async function deleteContentApi(id) {
-    const images = await getImageRowsByContentId(id)
-    await deleteContent(id)
-    await deleteImageObjects(images).catch(error => {
-        console.warn('图片文件清理失败:', error.message)
+// 正文和图片顺序在同一个数据库事务内保存，失败时保留原内容与表单。
+export async function saveContentBundle(id, data, restore = false) {
+    const { images = [], captions = [], ...fields } = data
+    const { data: result, error } = await supabase.rpc('save_content_bundle', {
+        p_id: id, p_content: fields, p_images: toImageRows(images, captions), p_restore: restore
     })
+    if (error) throw error
+    return result
+}
+
+export async function createContent(data) {
+    return saveContentBundle(data.id || crypto.randomUUID(), data)
+}
+
+export async function updateContentApi(id, data) {
+    const previous = await getImageRows(id)
+    const result = await saveContentBundle(id, data)
+    const retained = new Set(toImageRows(data.images || []).flatMap(image => [image.url, image.thumbnail_url]).filter(Boolean))
+    const removed = previous.flatMap(image => [image.url, image.thumbnail_url]).filter(path => path && !retained.has(getStoragePath(path) || path))
+    await deleteImageObjects(removed).catch(error => console.warn('旧图片清理失败:', error.message))
+    return result
+}
+
+export async function deleteContentApi(id) {
+    const images = await getImageRows(id)
+    await deleteContent(id)
+    await deleteImageObjects(images).catch(error => console.warn('图片清理失败:', error.message))
 }
