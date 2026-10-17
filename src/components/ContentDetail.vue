@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { CONTENT_TYPE } from '../config'
 import { formatDate, formatDateRange, getVisibilityLabel, getContentTypeLabel } from '../utils'
 import { canEditContent, canDeleteContent } from '../permissions'
+import { diaryDateKey } from '../diary.js'
 import Lightbox from './Lightbox.vue'
 import MediaImage from './MediaImage.vue'
 
@@ -25,7 +26,8 @@ const canDelete = computed(() => canDeleteContent(props.content, props.currentUs
             <h1 class="detail-title">{{ content.title }}</h1>
             <div class="detail-meta">
                 <span class="detail-author">{{ authorName }}</span>
-                <span>{{ formatDate(new Date(content.created_at).getTime(), true) }}</span>
+                <span v-if="content.type === CONTENT_TYPE.DIARY">日记日期 {{ diaryDateKey(content) }}</span>
+                <span v-else>{{ formatDate(new Date(content.created_at).getTime(), true) }}</span>
                 <span class="visibility-label">{{ getVisibilityLabel(content.visibility) }}</span>
                 <span v-if="images.length">{{ images.length }} 张图片</span>
             </div>

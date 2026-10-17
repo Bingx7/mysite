@@ -5,6 +5,8 @@ import { getContentTypeLabel } from './utils';
 import { loadTheme, getTheme, setTheme, resetTheme } from './theme';
 import { useAuth } from './composables/useAuth';
 import { useContents } from './composables/useContents';
+import { localDateKey, isDiaryDate, diaryMonthKey, diaryMonthLabel } from './diary.js';
+import { otherDiaryUsername, normalizeDiaryAuthorScope } from './diaryAccess.js';
 
 import LoginPage from './components/LoginPage.vue';
 import Sidebar from './components/Sidebar.vue';
@@ -12,6 +14,7 @@ import ContentList from './components/ContentList.vue';
 import ContentDetail from './components/ContentDetail.vue';
 import AsyncPanelStatus from './components/AsyncPanelStatus.vue';
 import GuestBanner from './components/GuestBanner.vue';
+import DiaryCalendar from './components/DiaryCalendar.vue';
 
 const AdminPanel = defineAsyncComponent(() => import('./admin/Admin.vue'));
 const lazyPanel = loader => defineAsyncComponent({ loader, loadingComponent: AsyncPanelStatus, errorComponent: AsyncPanelStatus, delay: 150, timeout: 15000 });
@@ -33,6 +36,7 @@ const {
     allContents, contentImagesMap, authorsMap, contentLoading, selectedContent, selectedContentImages,
     currentTab, sysSettings,
     currentPage, pageSize, searchQuery, totalContents, contentError, imagesLoading, imagesError,
+    diaryMonth, diaryDate, diaryAuthor, diaryDays,
     detailImagesLoading, detailImagesError, retryImages,
     resetContentState, prepareListChange,
     isModalOpen, modalMode, formImages, formCaptions,
@@ -52,7 +56,7 @@ const showAdmin = ref(false);
 let listScrollPosition = 0;
 let selectedListTrigger = null;
 let searchTimer = null;
-watch(() => [currentUser.value?.id, currentUser.value?.level], () => {
+watch(() => [currentUser.value?.id, currentUser.value?.level, currentUser.value?.username], () => {
     clearTimeout(searchTimer);
     listScrollPosition = 0;
     selectedListTrigger = null;
@@ -65,6 +69,18 @@ const tabTitle = computed(() => currentTab.value === 'all' ? '全部记录' : ge
 const tabDescription = computed(() => ({ all: '把日常、想法和照片，慢慢留在这里。', diary: '记录平常日子里的细小感受。', article: '一些想法，一些值得留下的文字。', album: '用照片收藏走过的地方和时光。' }[currentTab.value]));
 const registrationOpen = computed(() => sysSettings.value.registration_open);
 const isSuperAdmin = computed(() => currentUser.value?.level === LEVEL.SUPER_ADMIN);
+const diaryAuthorOptions = computed(() => [
+    { value: 'all', label: '全部可见' }, { value: 'mine', label: '我写的' },
+    ...(otherDiaryUsername(currentUser.value) ? [{ value: 'other', label: '对方写的' }] : [])
+]);
+const diaryEmptyTitle = computed(() => diaryDate.value ? '这一天还没有可见日记' : '这个月还没有可见日记');
+const diaryEmptyDescription = computed(() => diaryAuthor.value === 'other'
+    ? '可以切换日期，或看看其他可见记录。'
+    : '换个日期回看，也可以写下这一天的故事。');
+const diaryFilterDescription = computed(() => {
+    const author = diaryAuthorOptions.value.find(option => option.value === diaryAuthor.value)?.label || '全部可见';
+    return `${diaryDate.value || diaryMonthLabel(diaryMonth.value)} · ${currentUser.value ? author : '公开日记'}`;
+});
 
 /* ===== 认证 ===== */
 async function onLogin() {
@@ -116,6 +132,26 @@ async function onSearch(value) {
     clearTimeout(searchTimer);
     prepareListChange();
     searchTimer = setTimeout(() => { void loadContents(currentUser.value); }, value.trim() ? 250 : 0);
+}
+
+async function onDiaryFilter({ month = diaryMonth.value, date = diaryDate.value, author = diaryAuthor.value } = {}) {
+    clearTimeout(searchTimer);
+    diaryMonth.value = month;
+    diaryDate.value = date;
+    diaryAuthor.value = normalizeDiaryAuthorScope(author, currentUser.value);
+    currentPage.value = 1;
+    listScrollPosition = 0;
+    prepareListChange();
+    await loadContents(currentUser.value);
+}
+
+function onDiaryMonth(month) {
+    if (isDiaryDate(`${month}-01`)) return onDiaryFilter({ month, date: '' });
+}
+
+function onDiaryToday() {
+    const today = localDateKey();
+    return onDiaryFilter({ month: diaryMonthKey(today), date: today });
 }
 
 async function onPage(page) {
@@ -247,13 +283,13 @@ onUnmounted(() => { clearTimeout(searchTimer); resetContentState(); window.remov
                     <!-- 内容区 -->
                     <main class="content">
                         <div class="content-inner">
-                        <div v-if="!selectedContent" class="page-heading">
+                        <div v-if="!selectedContent" :class="['page-heading', { 'diary-heading': currentTab === CONTENT_TYPE.DIARY }]">
                             <div class="heading-copy">
                                 <p class="page-eyebrow"><span aria-hidden="true">✳</span> 生活的片段</p>
                                 <div class="page-title-row"><h1>{{ tabTitle }}</h1><span v-if="!contentLoading" class="content-count">{{ totalContents }} 条</span></div>
                                 <p class="page-description">{{ tabDescription }}</p>
                             </div>
-                            <svg class="heading-art" viewBox="0 0 210 170" fill="none" aria-hidden="true">
+                            <svg v-if="currentTab !== CONTENT_TYPE.DIARY" class="heading-art" viewBox="0 0 210 170" fill="none" aria-hidden="true">
                                 <circle cx="113" cy="83" r="63" stroke="currentColor" stroke-dasharray="2 6" opacity=".25" />
                                 <path d="M38 32h96v119H38z" transform="rotate(-12 86 91)" fill="var(--accent-soft)" stroke="currentColor" stroke-opacity=".25" />
                                 <path d="M72 19h68l23 24v110H72z" fill="var(--surface)" stroke="currentColor" stroke-opacity=".45" />
@@ -283,6 +319,16 @@ onUnmounted(() => { clearTimeout(searchTimer); resetContentState(); window.remov
                         />
 
                         <div v-show="!selectedContent" class="list-view">
+                        <div v-if="currentTab === CONTENT_TYPE.DIARY" class="diary-filter-toolbar">
+                            <div v-if="currentUser" class="diary-author-filter" role="group" aria-label="按日记作者筛选">
+                                <button v-for="option in diaryAuthorOptions" :key="option.value" type="button"
+                                    :aria-pressed="diaryAuthor === option.value"
+                                    @click="onDiaryFilter({ author: option.value })">{{ option.label }}</button>
+                            </div>
+                            <p class="diary-filter-description">{{ diaryFilterDescription }}</p>
+                        </div>
+                        <div :class="{ 'diary-workspace': currentTab === CONTENT_TYPE.DIARY }">
+                        <div class="records-column">
                         <ContentList
                             :contents="allContents"
                             :imagesMap="contentImagesMap"
@@ -290,10 +336,23 @@ onUnmounted(() => { clearTimeout(searchTimer); resetContentState(); window.remov
                             :currentTab="currentTab"
                             :currentPage="currentPage" :pageSize="pageSize" :total="totalContents" :searchQuery="searchQuery"
                             :loading="contentLoading" :error="contentError" :imagesLoading="imagesLoading" :imagesError="imagesError"
+                            :emptyTitle="currentTab === CONTENT_TYPE.DIARY ? diaryEmptyTitle : undefined"
+                            :emptyDescription="currentTab === CONTENT_TYPE.DIARY ? diaryEmptyDescription : undefined"
+                            :canCreate="currentTab === CONTENT_TYPE.DIARY && Boolean(currentUser) && diaryAuthor !== 'other'"
+                            :selectedDate="diaryDate"
                             @search="onSearch" @page="onPage"
                             @retry="loadContents(currentUser, { force: true })" @retryImages="retryImages"
                             @select="onSelectContent"
+                            @create="openCreateModal"
                         />
+                        </div>
+                        <DiaryCalendar v-if="currentTab === CONTENT_TYPE.DIARY"
+                            :month="diaryMonth" :selected="diaryDate" :days="diaryDays"
+                            :loading="contentLoading" :error="contentError"
+                            @month="onDiaryMonth" @select="onDiaryFilter({ date: $event })"
+                            @today="onDiaryToday" @clear="onDiaryFilter({ date: '' })"
+                            @retry="loadContents(currentUser, { force: true })" />
+                        </div>
                         </div>
                         </div>
                     </main>
@@ -386,6 +445,31 @@ onUnmounted(() => { clearTimeout(searchTimer); resetContentState(); window.remov
 .publish-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; position: relative; z-index: 1; box-shadow: 0 3px 8px #0000000a; transition: transform .18s, box-shadow .18s; }
 .publish-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 14px #00000012; }
 .publish-btn span { font-size: 18px; line-height: 1; font-weight: 400; }
+.diary-heading { min-height: 130px; }
+.diary-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 238px; gap: 28px; align-items: start; }
+.records-column { min-width: 0; }
+.diary-workspace :deep(.search-bar) { width: 100%; }
+.diary-workspace :deep(.list-toolbar) { gap: 12px; }
+.diary-workspace :deep(.record-row) { gap: 16px; padding-top: 24px; padding-bottom: 24px; }
+.diary-workspace :deep(.record-preview) { width: 100px; height: 80px; }
+.diary-filter-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px; }
+.diary-author-filter { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.diary-author-filter button { min-height: 36px; padding: 7px 12px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--text-secondary); font-size: 12px; cursor: pointer; }
+.diary-author-filter button[aria-pressed='true'] { background: var(--surface); border-color: var(--border); color: var(--text); }
+.diary-author-filter button:hover { color: var(--text); background: var(--accent-soft); }
+.diary-filter-description { font-size: 11px; color: var(--text-secondary); }
+@media (min-width: 1024px) and (max-width: 1180px) {
+    .diary-workspace { grid-template-columns: minmax(0, 1fr) 220px; gap: 22px; }
+    .diary-workspace :deep(.record-preview) { width: 76px; height: 68px; }
+}
+@media (max-width: 720px) {
+    .diary-workspace { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .diary-workspace :deep(.diary-calendar-rail) { grid-row: 1; }
+    .diary-filter-toolbar { gap: 10px; margin-bottom: 18px; }
+    .diary-author-filter { width: 100%; }
+    .diary-heading { min-height: 130px; }
+}
+@media (pointer: coarse) { .diary-author-filter button { min-height: 44px; } }
 @media (max-width: 1023px) {
     .header-content { height: 64px; padding: 0 24px; }
     .content { margin-left: 0; padding: 36px 28px 48px; }

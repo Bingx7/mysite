@@ -5,14 +5,16 @@ import { coverFirst } from '../media'
 import MediaImage from './MediaImage.vue'
 import SkeletonCard from './SkeletonCard.vue'
 import { formatDate, formatDateRange, truncateText, getVisibilityLabel, getContentTypeLabel } from '../utils'
+import { diaryDateKey, diaryMonthLabel } from '../diary.js'
 
 const props = defineProps({
     contents: Array, imagesMap: Object, authorsMap: Object, currentTab: String,
     currentPage: { type: Number, default: 1 }, pageSize: { type: Number, default: 8 },
     total: { type: Number, default: 0 }, searchQuery: { type: String, default: '' },
-    loading: Boolean, error: String, imagesLoading: Boolean, imagesError: String
+    loading: Boolean, error: String, imagesLoading: Boolean, imagesError: String,
+    emptyTitle: String, emptyDescription: String, canCreate: Boolean, selectedDate: String
 })
-const emit = defineEmits(['select', 'search', 'page', 'retry', 'retryImages'])
+const emit = defineEmits(['select', 'search', 'page', 'retry', 'retryImages', 'create'])
 const totalPages = computed(() => Math.max(1, Math.ceil(props.total / props.pageSize)))
 const pagedContents = computed(() => props.contents || [])
 const currentPage = computed(() => props.currentPage)
@@ -24,20 +26,17 @@ const contentGroups = computed(() => {
     if (props.currentTab !== CONTENT_TYPE.DIARY) return [{ key: 'list', label: '', contents: pagedContents.value }]
     const groups = new Map()
     for (const content of pagedContents.value) {
-        const created = new Date(content.created_at)
-        const valid = !Number.isNaN(created.getTime())
-        // 与列表日期使用同一本地时区，跨年和月初不会分到错误月份。
-        const key = valid ? `${created.getFullYear()}-${created.getMonth() + 1}` : 'unknown'
+        const date = diaryDateKey(content)
+        const key = date ? date.slice(0, 7) : 'unknown'
         if (!groups.has(key)) groups.set(key, {
-            key, label: valid ? `${created.getFullYear()} 年 ${created.getMonth() + 1} 月` : '未注明日期', contents: []
+            key, label: date ? diaryMonthLabel(key) : '未注明日期', contents: []
         })
         groups.get(key).contents.push(content)
     }
     return [...groups.values()]
 })
 function day(content) {
-    const value = new Date(content.created_at).getDate()
-    return Number.isNaN(value) ? '—' : String(value).padStart(2, '0')
+    return diaryDateKey(content).slice(-2) || '—'
 }
 const pageItems = computed(() => {
     const pages = []
@@ -51,6 +50,7 @@ function goPage(page) { if (page >= 1 && page <= totalPages.value && !props.load
 function images(content) { return coverFirst(props.imagesMap?.[content.id] || []) }
 function author(content) { return props.authorsMap?.[content.author_id]?.name || '未知作者' }
 function date(content) {
+    if (content.type === CONTENT_TYPE.DIARY) return diaryDateKey(content) || '未注明日期'
     return content.type === CONTENT_TYPE.ALBUM && content.start_date
         ? formatDateRange(new Date(content.start_date).getTime(), content.end_date ? new Date(content.end_date).getTime() : null)
         : formatDate(new Date(content.created_at).getTime())
@@ -64,7 +64,7 @@ function date(content) {
             <input :value="searchQuery" @input="$emit('search', $event.target.value)" type="search" class="search-input" aria-label="搜索内容" placeholder="搜索标题或正文">
             <button v-if="searchQuery" class="search-clear" aria-label="清空搜索" @click="$emit('search', '')">×</button>
         </div>
-        <span class="result-count" role="status">{{ loading ? '正在加载…' : searchQuery ? `找到 ${total} 条` : '最近发布' }}</span>
+        <span class="result-count" role="status">{{ loading ? '正在加载…' : searchQuery ? `找到 ${total} 条` : currentTab === CONTENT_TYPE.DIARY ? `共 ${total} 篇` : '最近发布' }}</span>
     </div>
 
     <div v-if="loading" role="status" aria-label="正在加载内容"><SkeletonCard :count="3" /></div>
@@ -115,9 +115,10 @@ function date(content) {
 
     <div v-if="!pagedContents.length" class="empty-state">
         <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.25" aria-hidden="true"><path d="M12 7h24v34H12z M18 17h12 M18 24h12 M18 31h7" /></svg>
-        <p>{{ searchQuery ? '没有找到匹配内容' : '这里还没有记录' }}</p>
-        <span>{{ searchQuery ? '换一个关键词试试。' : '当前分类下还没有可见内容。' }}</span>
+        <p>{{ searchQuery ? '没有找到匹配内容' : emptyTitle || '这里还没有记录' }}</p>
+        <span>{{ searchQuery ? '换一个关键词试试。' : emptyDescription || '当前分类下还没有可见内容。' }}</span>
         <button v-if="searchQuery" class="btn btn-secondary" @click="$emit('search', '')">清空搜索</button>
+        <button v-else-if="canCreate" class="btn btn-secondary" @click="$emit('create')">{{ selectedDate ? '记录这一天' : '写一篇日记' }}</button>
     </div>
 
     <nav v-if="totalPages > 1" class="pagination" aria-label="内容分页">
@@ -146,7 +147,7 @@ function date(content) {
 .diary-list .record-group + .record-group { margin-top: 28px; }
 .month-heading { display: flex; align-items: center; gap: 12px; margin: 0; padding: 16px 0; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 600; letter-spacing: .04em; color: var(--text); }
 .month-heading::before { content: ''; width: 20px; height: 2px; background: var(--brand-color); }
-.record-index.diary-day { font-size: 21px; line-height: 1.2; font-weight: 400; color: var(--brand-color); opacity: .85; }
+.record-index.diary-day { font-size: 21px; line-height: 1.2; font-weight: 400; color: var(--brand-color); opacity: .85; white-space: nowrap; }
 .record-row { position: relative; width: 100%; display: flex; align-items: center; gap: 24px; padding: 28px 12px 28px 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; text-align: left; background: transparent; color: var(--text); cursor: pointer; transition: background .2s; }
 .record-row::before { content: ''; position: absolute; left: -13px; top: 28px; bottom: 28px; width: 2px; background: var(--brand-color); transform: scaleY(0); transform-origin: top; transition: transform .2s; }
 .record-row:hover, .record-row:focus-visible { background: var(--accent-soft); }

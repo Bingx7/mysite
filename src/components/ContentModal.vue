@@ -41,6 +41,11 @@ const emit = defineEmits([
                     <label class="form-label">标题</label>
                     <input :value="formTitle" @input="$emit('update:formTitle', $event.target.value)" type="text" class="form-input" placeholder="请输入标题">
                 </div>
+                <div v-if="currentTab === CONTENT_TYPE.DIARY" class="form-group">
+                    <label for="diary-entry-date" class="form-label">日记日期</label>
+                    <input id="diary-entry-date" :value="formStartDate" @input="$emit('update:formStartDate', $event.target.value)" type="date" class="form-input" required>
+                    <p class="upload-hint">可以补写过去的日记，发布时间保持不变。</p>
+                </div>
                 <div v-if="currentTab === CONTENT_TYPE.ALBUM" class="form-group">
                     <label class="form-label">描述</label>
                     <textarea :value="formDescription" @input="$emit('update:formDescription', $event.target.value)" class="form-textarea" placeholder="请输入描述"></textarea>

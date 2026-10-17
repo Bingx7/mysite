@@ -5,7 +5,8 @@ const assert = require('node:assert/strict');
 const base = process.env.TEST_URL || 'http://127.0.0.1:8081';
 const A = '22222222-2222-4222-8222-222222222222', B = '33333333-3333-4333-8333-333333333333';
 const user = id => ({ id, name: id === A ? '甲' : '乙', username: id === A ? 'demo' : 'other', email: id === A ? 'demo@example.com' : 'other@example.com', avatar: '👤', level: 1, aud: 'authenticated', role: 'authenticated', user_metadata: {} });
-const make = (n, extra = {}) => ({ id: `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`, type: 'diary', title: `记录 ${n}`, body: `正文 ${n}`, description: '', author_id: A, visibility: 'public', created_at: new Date(Date.UTC(2026, 8, 28, 0, 0, -n)).toISOString(), ...extra });
+const fixtureToday = new Date();
+const make = (n, extra = {}) => ({ id: `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`, type: 'diary', title: `记录 ${n}`, body: `正文 ${n}`, description: '', author_id: A, visibility: 'public', start_date: null, created_at: new Date(fixtureToday.getFullYear(), fixtureToday.getMonth(), 15, 12, 0, -n).toISOString(), ...extra });
 const specials = '符号 ,()"\\%_*.[试]';
 let records = [...Array.from({ length: 100 }, (_, i) => make(i + 1)), make(101, { title: '甲的私密', visibility: 'private' }), make(102, { title: '乙的私密', visibility: 'private', author_id: B }), make(103, { type: 'article', title: '文章一' }), make(104, { type: 'album', title: '相册一' }), make(105, { type: 'album', title: '空相册' })];
 records[90].body = '深处的搜索词 ' + specials;
@@ -29,10 +30,14 @@ function split(value) {
 function matches(row, condition) {
     if (condition.startsWith('and(')) return split(condition.slice(4, -1)).every(c => matches(row, c));
     if (condition.startsWith('or(')) return split(condition.slice(3, -1)).some(c => matches(row, c));
-    const [, field, op, value] = condition.match(/^([\w_]+)\.(eq|in|imatch)\.(.*)$/s) || [];
+    const [, field, op, value] = condition.match(/^([\w_]+)\.(eq|neq|in|imatch|gte|lt|is)\.(.*)$/s) || [];
     if (!field) throw new Error('Unexpected query: ' + condition);
     if (op === 'imatch') return new RegExp(JSON.parse(value), 'i').test(row[field] || '');
     if (op === 'in') return split(value.slice(1, -1)).includes(row[field]);
+    if (op === 'is') return row[field] == null;
+    if (op === 'gte') return row[field] != null && Date.parse(row[field]) >= Date.parse(value);
+    if (op === 'lt') return row[field] != null && Date.parse(row[field]) < Date.parse(value);
+    if (op === 'neq') return row[field] !== (value.startsWith('"') ? JSON.parse(value) : value);
     return row[field] === (value.startsWith('"') ? JSON.parse(value) : value);
 }
 function deferred() { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; }
@@ -42,6 +47,7 @@ async function create(browser, options = {}) {
     const state = { user: null, requests: [], chunks: [], imagesGate: options.imagesGate, settingsGate: options.settingsGate, listGate: null, failImages: false, failList: false, saves: 0 };
     await context.route('**/*', async route => {
         const request = route.request(), url = new URL(request.url());
+        if (url.hostname === 'me.kis.v2.scr.kaspersky-labs.com') return route.abort();
         const json = (data, status = 200, headers = {}) => route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-expose-headers': 'content-range', ...headers }, body: JSON.stringify(data) });
         if (url.hostname === '127.0.0.1') {
             if (url.pathname.startsWith('/qa-photo')) return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="800" height="600" fill="#dce1da"/></svg>' });
@@ -59,8 +65,10 @@ async function create(browser, options = {}) {
         if (url.pathname === '/rest/v1/rpc/save_content_bundle') {
             const payload = request.postDataJSON(); state.saves++;
             const existing = records.find(r => r.id === payload.p_id);
-            if (existing) Object.assign(existing, payload.p_content);
-            else records.unshift(make(200 + state.saves, { id: payload.p_id, ...payload.p_content, author_id: state.user.id, created_at: new Date().toISOString() }));
+            const { id: ignoredId, ...fields } = payload.p_content;
+            fields.start_date = fields.startDate || null;
+            if (existing) Object.assign(existing, fields);
+            else records.unshift(make(200 + state.saves, { id: payload.p_id, ...fields, author_id: state.user.id, created_at: new Date().toISOString() }));
             return json({ id: payload.p_id });
         }
         if (request.method() !== 'GET' && request.method() !== 'HEAD') { forbidden.push(request.method() + ' ' + url.pathname); return json({}, 403); }
@@ -73,6 +81,7 @@ async function create(browser, options = {}) {
             let result = records.filter(row => row.visibility === 'public' || row.author_id === state.user?.id);
             if (filter) result = result.filter(row => split(filter.slice(1, -1)).some(c => matches(row, c)));
             if (url.searchParams.has('type')) result = result.filter(r => r.type === url.searchParams.get('type').slice(3));
+            for (const field of ['id', 'author_id']) if (url.searchParams.has(field)) result = result.filter(row => matches(row, `${field}.${url.searchParams.get(field)}`));
             result.sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id));
             const total = result.length, offset = Number(url.searchParams.get('offset') || 0), limit = Number(url.searchParams.get('limit') || total);
             result = result.slice(offset, offset + limit);
@@ -109,7 +118,7 @@ async function run() {
         await page.getByRole('button', { name: '以访客身份浏览', exact: true }).click();
         await waitRows(page);
         assert.match(await page.locator('.content-count').innerText(), /100/);
-        assert.equal(count(state, '/rest/v1/contents'), 1);
+        assert.equal(count(state, '/rest/v1/contents'), 2, 'Only date metadata plus 8 full records are requested');
         await page.waitForFunction(() => document.querySelector('.image-count')?.textContent.includes('加载中'));
         assert.equal(count(state, '/rest/v1/content_images'), 1, 'Only one batched image query for the page');
         assert.equal(count(state, '/storage/v1/object/sign/images'), 0, 'Text renders before signing');
@@ -121,7 +130,7 @@ async function run() {
         const beforeReturn = state.requests.length;
         await page.getByRole('button', { name: '文章', exact: true }).click(); await waitRows(page, 1);
         await page.getByRole('button', { name: '日记', exact: true }).click(); await waitRows(page);
-        assert.equal(count(state, '/rest/v1/contents'), 2, 'Return uses cache');
+        assert.equal(count(state, '/rest/v1/contents'), 3, 'Return uses cache');
         assert.equal(count(state, '/rest/v1/profiles'), 1, 'Authors are cached');
         await page.getByRole('button', { name: '下一页', exact: true }).click(); await waitRows(page);
         assert.match(await page.locator('.record-title').first().innerText(), /记录 9$/);
@@ -162,7 +171,7 @@ async function run() {
         const beforeExpiry = count(state, '/rest/v1/contents');
         await page.evaluate(() => { const original = Date.now; Date.now = () => original() + 61_000; });
         await page.getByRole('button', { name: '日记', exact: true }).click(); await waitRows(page);
-        assert.equal(count(state, '/rest/v1/contents'), beforeExpiry + 1, 'Expired cache must refetch');
+        assert.equal(count(state, '/rest/v1/contents'), beforeExpiry + 2, 'Expired cache refetches date metadata and current-page records');
         for (const width of [390, 320]) { await page.setViewportSize({ width, height: 844 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false); }
         if (process.env.TEST_SCREENSHOT) await page.screenshot({ path: process.env.TEST_SCREENSHOT, fullPage: true });
         await page.locator('.account-trigger').click(); await page.getByRole('button', { name: '外观设置', exact: true }).click();
@@ -194,7 +203,7 @@ async function run() {
         await page.getByPlaceholder('请输入标题').fill('加速后新增');
         await page.getByPlaceholder('请输入正文').fill('缓存应立即失效');
         await page.getByRole('button', { name: '发布', exact: true }).click();
-        await page.getByRole('dialog').waitFor({ state: 'hidden' }); await waitRows(page);
+        await page.getByRole('dialog').waitFor({ state: 'hidden' }); await waitRows(page, 1);
         assert.equal(await page.locator('.record-title').first().innerText(), '加速后新增');
         assert.equal(state.saves, 1);
         assert.ok(state.chunks.some(p => /ContentModal-/.test(p)));

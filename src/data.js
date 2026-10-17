@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { contentFilter } from './contentQuery'
+import { diaryRangeFilter } from './diary.js'
+import { otherDiaryUsername } from './diaryAccess.js'
 
 /* ==============================
    用户 (profiles)
@@ -98,6 +100,51 @@ export async function getContentsPage({ type, page = 1, pageSize = 8, search = '
     const { data, count, error } = await query
     if (error) throw error
     return { rows: data || [], total: count ?? data?.length ?? 0 }
+}
+
+/** 月历只读取当前账号有权查看的日期索引，不下载整月正文或图片。 */
+export async function getDiaryIndex({ month, search = '', authorScope = 'all', user = null, signal }) {
+    let otherAuthorId = null
+    if (authorScope === 'other') {
+        const username = otherDiaryUsername(user)
+        if (!username) return []
+        let profileQuery = supabase.from('profiles').select('id').eq('username', username)
+        if (signal) profileQuery = profileQuery.abortSignal(signal)
+        const { data: profile, error } = await profileQuery.maybeSingle()
+        if (error) throw error
+        if (!profile?.id || profile.id === user.id) return []
+        otherAuthorId = profile.id
+    }
+    const rows = []
+    const batchSize = 500
+    for (let offset = 0; ; offset += batchSize) {
+        let query = supabase.from('contents')
+            .select('id, author_id, type, visibility, start_date, created_at', { count: 'exact' })
+            .eq('type', 'diary')
+            .or(`and(or(${contentFilter(user, search)}),or(${diaryRangeFilter(month)}))`)
+            .order('id', { ascending: true })
+            .range(offset, offset + batchSize - 1)
+        if (user?.id && authorScope === 'mine') query = query.eq('author_id', user.id)
+        if (otherAuthorId) query = query.eq('author_id', otherAuthorId)
+        if (signal) query = query.abortSignal(signal)
+        const { data, count, error } = await query
+        if (error) throw error
+        rows.push(...(data || []))
+        if (!data?.length || (count != null ? rows.length >= count : data.length < batchSize)) break
+    }
+    return rows
+}
+
+/** 按日期索引分页后再读正文，保留日记日期与旧记录混合时的正确顺序。 */
+export async function getDiaryPageRows(ids, { user = null, signal } = {}) {
+    if (!ids.length) return []
+    let query = supabase.from('contents').select('*').eq('type', 'diary')
+        .in('id', ids).or(contentFilter(user))
+    if (signal) query = query.abortSignal(signal)
+    const { data, error } = await query
+    if (error) throw error
+    const rows = new Map((data || []).map(row => [row.id, row]))
+    return ids.map(id => rows.get(id)).filter(Boolean)
 }
 
 /** 根据可见性获取内容 */

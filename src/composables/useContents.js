@@ -2,8 +2,10 @@ import { ref, computed } from 'vue'
 import { IMAGE_TYPES } from '../media'
 import { CONFIG, VISIBILITY, CONTENT_TYPE } from '../config'
 import { getVisibleContents } from '../permissions'
-import { getSystemSettings, getUsers, getContentsPage } from '../data'
+import { getSystemSettings, getUsers, getContentsPage, getDiaryIndex, getDiaryPageRows } from '../data'
 import { contentPageSize } from '../contentQuery'
+import { localDateKey, isDiaryDate, diaryDateKey, diaryMonthKey, sortDiaryIndex, diaryDayCounts } from '../diary.js'
+import { normalizeDiaryAuthorScope } from '../diaryAccess.js'
 import {
     getImagesByContentIds,
     getImagesByContentId,
@@ -33,6 +35,10 @@ export function useContents() {
     const currentPage = ref(1)
     const searchQuery = ref('')
     const totalContents = ref(0)
+    const diaryMonth = ref(diaryMonthKey())
+    const diaryDate = ref('')
+    const diaryAuthor = ref('all')
+    const diaryDays = ref({})
     const pageSize = computed(() => contentPageSize(currentTab.value))
     const saving = ref(false)
     const uploading = ref(false)
@@ -53,10 +59,12 @@ export function useContents() {
     const formStartDate = ref('')
     const formEndDate = ref('')
     const formType = ref(CONTENT_TYPE.DIARY)
+    let initialForm = ''
 
     // 仅缓存当前会话的少量分页；不持久化正文或图片访问链接。
     const CACHE_TTL = 60_000
     const pageCache = new Map()
+    const diaryIndexCache = new Map()
     let scope = null
     let generation = 0
     let listRequest = 0
@@ -79,6 +87,8 @@ export function useContents() {
         cancelPendingLoad()
         generation++
         pageCache.clear()
+        diaryIndexCache.clear()
+        diaryDays.value = {}
         usersCache = null
         usersPending = null
     }
@@ -94,6 +104,9 @@ export function useContents() {
         currentPage.value = 1
         searchQuery.value = ''
         currentTab.value = CONTENT_TYPE.DIARY
+        diaryMonth.value = diaryMonthKey()
+        diaryDate.value = ''
+        diaryAuthor.value = 'all'
         contentLoading.value = false
         imagesLoading.value = false
         contentError.value = ''
@@ -109,6 +122,7 @@ export function useContents() {
         imagesError.value = ''
         imagesLoading.value = false
         contentLoading.value = true
+        diaryDays.value = {}
     }
 
     async function loadAuthors() {
@@ -159,6 +173,7 @@ export function useContents() {
         activeEntry = entry
         allContents.value = entry.rows
         totalContents.value = entry.total
+        diaryDays.value = entry.diaryDays || {}
         contentImagesMap.value = entry.images || {}
         contentLoading.value = false
         contentError.value = ''
@@ -169,7 +184,7 @@ export function useContents() {
     }
 
     async function loadContents(currentUser, { force = false } = {}) {
-        const nextScope = currentUser ? `${currentUser.id}:${currentUser.level}` : 'guest'
+        const nextScope = currentUser ? `${currentUser.id}:${currentUser.level}:${currentUser.username || ''}` : 'guest'
         if (scope !== null && scope !== nextScope) resetContentState()
         scope = nextScope
         if (force) invalidateContentCache()
@@ -179,7 +194,11 @@ export function useContents() {
         const type = currentTab.value
         const page = currentPage.value
         const search = searchQuery.value.trim()
-        const key = JSON.stringify([type, page, search])
+        const month = diaryMonth.value
+        const date = diaryDate.value
+        const author = normalizeDiaryAuthorScope(diaryAuthor.value, currentUser)
+        diaryAuthor.value = author
+        const key = JSON.stringify([type, page, search, ...(type === CONTENT_TYPE.DIARY ? [month, date, author] : [])])
         const cached = pageCache.get(key)
         void loadAuthors()
         if (cached && Date.now() - cached.at < CACHE_TTL) {
@@ -194,7 +213,31 @@ export function useContents() {
         contentImagesMap.value = {}
         controller = new AbortController()
         try {
-            const result = await getContentsPage({ type, page, pageSize: pageSize.value, search, user: currentUser, signal: controller.signal })
+            let result
+            let days = {}
+            const signal = controller.signal
+            if (type === CONTENT_TYPE.DIARY) {
+                const indexKey = JSON.stringify([month, search, author])
+                let index = diaryIndexCache.get(indexKey)
+                if (!index || Date.now() - index.at >= CACHE_TTL) {
+                    const rows = await getDiaryIndex({ month, search, authorScope: author, user: currentUser, signal })
+                    if (request !== listRequest || version !== generation) return
+                    index = { rows: sortDiaryIndex(getVisibleContents(rows, currentUser)), at: Date.now() }
+                    diaryIndexCache.set(indexKey, index)
+                    if (diaryIndexCache.size > 8) diaryIndexCache.delete(diaryIndexCache.keys().next().value)
+                }
+                days = diaryDayCounts(index.rows)
+                diaryDays.value = days
+                const matching = date ? index.rows.filter(row => diaryDateKey(row) === date) : index.rows
+                const ids = matching.slice((page - 1) * pageSize.value, page * pageSize.value).map(row => row.id)
+                const rows = await getDiaryPageRows(ids, { user: currentUser, signal })
+                if (request !== listRequest || version !== generation) return
+                // 索引缓存期间若记录被删除，重新读取索引，避免空页和过期总数。
+                if (!force && rows.length < ids.length) return loadContents(currentUser, { force: true })
+                result = { rows, total: matching.length }
+            } else {
+                result = await getContentsPage({ type, page, pageSize: pageSize.value, search, user: currentUser, signal })
+            }
             if (request !== listRequest || version !== generation) return
             const maxPage = Math.max(1, Math.ceil(result.total / pageSize.value))
             if (page > maxPage) {
@@ -203,7 +246,7 @@ export function useContents() {
                 pageCache.clear()
                 return loadContents(currentUser)
             }
-            const entry = { rows: getVisibleContents(result.rows, currentUser), total: result.total, at: Date.now(), images: null, pending: null }
+            const entry = { rows: getVisibleContents(result.rows, currentUser), total: result.total, diaryDays: days, at: Date.now(), images: null, pending: null }
             pageCache.delete(key)
             pageCache.set(key, entry)
             if (pageCache.size > 12) pageCache.delete(pageCache.keys().next().value)
@@ -245,8 +288,9 @@ export function useContents() {
         formBody.value = ''
         formDescription.value = ''
         formVisibility.value = VISIBILITY.PUBLIC
-        formStartDate.value = ''
+        formStartDate.value = formType.value === CONTENT_TYPE.DIARY ? diaryDate.value || localDateKey() : ''
         formEndDate.value = ''
+        initialForm = formSnapshot()
         isModalOpen.value = true
     }
 
@@ -269,19 +313,20 @@ export function useContents() {
         formBody.value = content.body || ''
         formDescription.value = content.description || ''
         formVisibility.value = content.visibility || VISIBILITY.PUBLIC
-        formStartDate.value = content.start_date ? formatDate(new Date(content.start_date).getTime()) : ''
+        formStartDate.value = content.type === CONTENT_TYPE.DIARY ? diaryDateKey(content)
+            : content.start_date ? formatDate(new Date(content.start_date).getTime()) : ''
         formEndDate.value = content.end_date ? formatDate(new Date(content.end_date).getTime()) : ''
+        initialForm = formSnapshot()
         isModalOpen.value = true
     }
 
+    function formSnapshot() {
+        return JSON.stringify([formTitle.value, formBody.value, formDescription.value, formVisibility.value,
+            formStartDate.value, formEndDate.value, formImages.value.map(image => [image.path || image.url, image.is_cover]), formCaptions.value])
+    }
+
     function hasUnsavedContent() {
-        return formTitle.value
-            || formBody.value
-            || formDescription.value
-            || formImages.value.length > 0
-            || formStartDate.value
-            || formEndDate.value
-            || formVisibility.value !== VISIBILITY.PUBLIC
+        return isModalOpen.value && formSnapshot() !== initialForm
     }
 
     async function closeModal(discardNewUploads = true) {
@@ -371,6 +416,10 @@ export function useContents() {
             showToastMessage('请输入标题', 'error')
             return
         }
+        if (formType.value === CONTENT_TYPE.DIARY && !isDiaryDate(formStartDate.value)) {
+            showToastMessage('请选择有效的日记日期', 'error')
+            return false
+        }
         if (formStartDate.value && formEndDate.value && formStartDate.value > formEndDate.value) {
             showToastMessage('结束日期不能早于开始日期', 'error')
             return
@@ -402,6 +451,13 @@ export function useContents() {
             } else {
                 await updateContentApi(selectedContent.value.id, contentData)
                 showToastMessage('更新成功')
+            }
+            if (formType.value === CONTENT_TYPE.DIARY && currentTab.value === CONTENT_TYPE.DIARY) {
+                diaryMonth.value = diaryMonthKey(formStartDate.value)
+                diaryDate.value = formStartDate.value
+                if (diaryAuthor.value === 'other') diaryAuthor.value = 'mine'
+                searchQuery.value = ''
+                currentPage.value = 1
             }
             await closeModal(false)
             return true
@@ -476,6 +532,7 @@ export function useContents() {
         allContents, contentImagesMap, authorsMap, contentLoading, selectedContent, selectedContentImages,
         currentTab, sysSettings, folderColors,
         currentPage, pageSize, searchQuery, totalContents, contentError, imagesLoading, imagesError,
+        diaryMonth, diaryDate, diaryAuthor, diaryDays,
         detailImagesLoading, detailImagesError, retryImages,
         resetContentState, invalidateContentCache, prepareListChange, cancelPendingLoad,
         isModalOpen, modalMode, formImages, formCaptions,

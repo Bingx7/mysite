@@ -155,9 +155,9 @@ const assert = require('node:assert/strict')
             window.testApp.mount('#test-root')
             return images.find(image => image.is_cover).thumbnail_url
         })
-        assert.equal(await page.locator('.folder-image').first().getAttribute('src'), lazy)
-        assert.equal(await page.locator('.folder-image').first().getAttribute('loading'), 'lazy')
-        assert.match(await page.locator('.album-stats').innerText(), /3 张/)
+        assert.equal(await page.locator('.album-cover').first().getAttribute('src'), lazy)
+        assert.equal(await page.locator('.album-cover').first().getAttribute('loading'), 'lazy')
+        assert.match(await page.locator('.album-count').innerText(), /3 张/)
         // 恢复 UI：选择文件只校验和预览，必须点击确认才开始恢复。
         const backupText = await page.evaluate(async () => {
             window.testApp.unmount()
